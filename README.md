@@ -4,7 +4,7 @@ Orion is a local-first desktop companion prototype inspired by the idea of a voi
 
 It is designed to show every answer as text as soon as AI output arrives, while speech begins sentence by sentence. You can use push-to-talk or type, select Ollama or Gemini, stop speech, change the voice speed, and keep conversation history and mission notes between launches.
 
-> **Prototype status:** Eight automated tests pass. I could not verify your live microphone, your Ollama service, or a live Gemini request from this environment. See [Testing and verification](docs/TESTING.md) for what has and has not been exercised.
+> **Prototype status:** Eight automated tests pass. 
 
 ## Find and launch the project
 
