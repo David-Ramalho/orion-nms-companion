@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Orion · Exosuit Companion</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/tweaks.css">
+</head>
+<body>
+<div class="shell">
+  <header><div class="sigil">✦</div><div><div class="eyebrow">NO MAN'S SKY · FIELD COMPANION</div><h1>ORION <span>ORI · EXOSUIT AI</span></h1></div><div class="status"><i id="lamp"></i><span id="statusText">Checking systems…</span></div></header>
+  <main>
+    <section class="conversation">
+      <div class="scene"><div class="planet"></div><div class="scene-copy"><span>EXOSUIT LINK ESTABLISHED</span><b>Ready when you are, Traveller.</b></div></div>
+      <div class="messages" id="messages" aria-live="polite"><div class="msg assistant"><div class="who">ORION <small>ORI · EXOSUIT</small></div><div class="bubble">I’m here. Tell me what you’ve found, or ask me anything while you explore. I’ll show text as soon as it arrives and speak in parallel.</div></div></div>
+      <div class="composer"><button class="mic" id="mic" title="Push to talk">◉<small>HOLD</small></button><textarea id="prompt" rows="2" placeholder="Talk to Orion or type a message… (Enter to send)"></textarea><button id="send" class="send">SEND ↗</button></div>
+      <div class="toolbar"><span id="hint">Hold the mic button to record · local English transcription</span><div><button id="stop" class="quiet" disabled>■ Stop voice</button><button id="clear" class="quiet">Clear chat</button></div></div>
+    </section>
+    <aside>
+      <section class="card"><div class="cardhead"><div><span class="eyebrow">CONNECTION</span><h2>AI systems</h2></div><button id="refresh" class="icon">↻</button></div>
+        <label>Provider mode<select id="provider"><option value="auto">Automatic · local first</option><option value="ollama">Ollama only</option><option value="gemini">Gemini only</option></select></label>
+        <div class="provider-line"><span class="dot" id="ollamaDot"></span><span>Ollama local</span><span class="right" id="ollamaLabel">Checking</span></div>
+        <label>Ollama model <select id="model"><option value="">Loading installed models…</option></select></label>
+        <label>Ollama address<input id="ollamaUrl" value="http://127.0.0.1:11434"></label>
+        <div class="provider-line"><span class="dot" id="geminiDot"></span><span>Gemini API</span><span class="right" id="geminiLabel">Key not set</span></div>
+        <label>Gemini model<input id="geminiModel" value="gemini-3.8-flash"></label>
+        <div class="keyrow"><input type="password" id="apiKey" placeholder="Paste Gemini key (stored in Windows)" autocomplete="new-password"><button id="saveKey" class="smallbtn">SAVE</button></div>
+        <label class="check"><input type="checkbox" id="cloudConsent"> I accept Gemini cloud processing</label>
+        <label class="check"><input type="checkbox" id="cloudFallback"> Allow Gemini as Auto fallback</label>
+        <p class="note">Cloud calls send prompts and selected memories to Google. Unpaid-tier data may be used to improve products and reviewed by people. Check your Google project billing and current quotas; this prototype cannot cap charges if your project has billing enabled or free limits change. Ollama is not running now, so Automatic needs opt-in fallback to answer.</p>
+        <button id="saveSettings" class="fullbtn">SAVE CONNECTION SETTINGS</button>
+      </section>
+      <section class="card"><span class="eyebrow">VOICE & TEXT</span><h2>Make it yours</h2>
+        <label>Voice<select id="voice"><option value="">System default</option></select></label>
+        <label>Speaking speed <span class="right"><b id="rateLabel">1.20×</b></span><input id="rate" type="range" min="0.7" max="2" step="0.05" value="1.2"></label>
+        <label>Companion personality<textarea id="persona" rows="4" placeholder="How should Orion sound and behave?"></textarea></label>
+        <label>Local speech recognition<select id="stt"><option value="base.en">Balanced · base English (about 150 MB)</option><option value="tiny.en">Fast · tiny English (about 75 MB)</option></select></label>
+        <p class="note">First mic use downloads the selected Whisper model. Transcription runs locally on CPU. Spoken output uses Windows/browser voices; subtitles never wait for speech.</p>
+      </section>
+      <section class="card memorycard"><div class="cardhead"><div><span class="eyebrow">PERSISTENT MEMORY</span><h2>Mission notes</h2></div><button id="addFact" class="smallbtn">+ NOTE</button></div>
+        <p class="note">Saved on this PC and recalled in future conversations. Add your ship, goals, discoveries, or preferences.</p><div id="facts" class="facts"></div>
+      </section>
+    </aside>
+  </main>
+  <footer><span>ORION // EXPLORATION SUPPORT SYSTEM</span><span>LOCAL UI · DATA STORED ON THIS PC</span></footer>
+</div><script src="/static/app.js"></script>
+</body></html>

@@ -1,0 +1,1 @@
+"""NMS Exosuit Companion prototype."""

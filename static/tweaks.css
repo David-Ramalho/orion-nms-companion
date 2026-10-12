@@ -1,0 +1,2 @@
+textarea#persona { width:100%; color:var(--ink); background:#0b1117; border:1px solid #2a3741; border-radius:4px; padding:9px 10px; font:12px Manrope,Segoe UI,sans-serif; margin-top:6px; outline:none; resize:vertical; line-height:1.45 }
+textarea#persona:focus { border-color:#4f908b }
