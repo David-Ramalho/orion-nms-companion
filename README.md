@@ -135,7 +135,7 @@ From this folder, run:
 
 The automated suite includes checks for the local page, SQLite persistence, provider-stream parsing, opt-in behavior, streamed chat, and the audio decoder compatibility fix. These use mocked AI streams; they do **not** prove that your live Gemini key, Ollama model, microphone, voice, or NMS session works. The current test record is in [Testing and verification](docs/TESTING.md).
 
-## Preparing for a future GitHub upload
+## Before sharing releases or forks
 
 This is an early prototype. Before reusing or redistributing it:
 
