@@ -1,57 +1,44 @@
-# Architecture
+# Arquitetura local
 
-## Data flow
+O servidor Flask escuta somente em 127.0.0.1:8765. A página usa streaming NDJSON para texto e síntese de voz do navegador. A camada de provedores mantém Ollama e Gemini separados.
 
-```text
-Chrome / Edge UI
-  ├─ push-to-talk audio (MediaRecorder) ──HTTP──> Flask /api/transcribe
-  │                                               └─ faster-whisper CPU/int8 (local)
-  ├─ typed or transcribed text ────────HTTP stream──> provider adapter
-  │                                               ├─ Ollama /api/chat (local first)
-  │                                               └─ Gemini streamGenerateContent (opt-in cloud)
-  ├─ provider chunks ──> immediate subtitle updates
-  │                  └─ sentence queue ──> browser speechSynthesis
-  └─ local settings + SQLite history/mission notes (%LOCALAPPDATA%)
-```
+## Contexto e memória
 
-The Flask server binds to `127.0.0.1:8765` only. It is a local prototype rather than a hardened multi-user web service. Keep it bound to loopback; do not expose it to a LAN or public network.
+SQLite contém profiles, messages, facts, journal, snapshots e metrics. Histórico e todas as consultas de exploração são filtrados por perfil. Registros antigos migram para default. As fontes do diário distinguem usuário, observação revisada, diferenças de save e resumo gerado.
 
-## Integration options considered
+Antes de cada resposta, o servidor monta persona, notas, objetivos abertos e registros recentes/relevantes do diário do perfil. O snapshot entra como resumo estruturado: horário/origem, moedas e contagens preservadas, nomes de bases, até oito bases relacionadas à pergunta e até 30 correspondências de inventário. O limite de texto remove registros opcionais inteiros, sem cortar JSON ou esconder totais. Termos comuns da pergunta não contam como correspondências de inventário. A ausência de objetivos e a falta de importação do livro de missões são explícitas. O prompt trata registros como dados, nunca instruções. A memória não é ilimitada: há limites de contexto e correspondência textual simples.
 
-| Path | Strength | Cost / risk | Current choice |
-|---|---|---|---|
-| Independent exosuit window (this app) | Full control over immediate subtitles, voice interruption, provider privacy, and memory. | More work to add game data and overlay behavior; doesn't inject a body into NMS. | Prototype foundation. |
-| WingmanAI + its NMS profile | Existing push-to-talk, game profile, and NMS Assistant API integration; quickest way to test a game-aware suit persona. | External app setup/account path, current profile compatibility unverified, and subtitle-first UX needs validation. | Re-evaluate for an optional adapter or comparison after user's live setup test. |
-| NMS Companion bridge | Existing offline save catalogue and OCR provide a useful local-awareness reference. | Separate app; exact license was not verified, so no code reuse. Bridge format and version compatibility would need review. | Future read-only data source candidate. |
-| Native in-game companion mod | Most immersive if a stable model/entity route exists. | No supported stable API for adding/following a custom companion was verified here; game updates and process hooks create high maintenance and safety risk. | Research experiment only; not a blocker for the exosuit persona. |
+## Saves
 
-Sonorus is treated as a design inspiration for an expressive companion, not a reusable NMS integration. The project was built for a different game and its game-specific assets/dependencies cannot be assumed portable.
+O watcher verifica somente arquivos vinculados explicitamente. Faz duas amostras para debounce e valida tamanho/mtime antes/depois da leitura. PC LZ4 é descompactado em memória com limite de 64 MB. Um mapa externo versionado traduz as chaves necessárias. JSON e identificadores são validados; IDs binários ilegíveis são descartados com aviso.
 
-## Components
+O estado normalizado contém endereço, moedas disponíveis, bases e inventários selecionados. SHA-256 evita snapshots/eventos duplicados. Mudanças geram observações de último save, não eventos em tempo real. libNOM CLI opcional só recebe uma cópia temporária e a operação Read.
 
-- `companion/app.py`: local HTTP routes, transcription lifecycle, provider selection, cancellation, memory API.
-- `companion/providers.py`: streamed Ollama NDJSON and Gemini SSE adapters. The Gemini key is sent in an HTTP header, not a URL.
-- `companion/memory.py`: SQLite conversation history and user-curated mission notes. Notes are included as context in subsequent prompts.
-- `companion/config.py`: defaults and JSON settings in the Windows local application-data directory.
-- `static/app.js`: streamed subtitle rendering, phrase/sentence speech queue, stop, microphone capture, settings.
-- `templates/index.html` + `static/*.css`: responsive companion interface.
+## Captura e desktop
 
-## Provider behavior
+A captura identifica uma janela pelo título, lê sua região visível e normaliza a imagem. OCR tenta Windows WinRT e usa RapidOCR CPU como fallback. Nenhuma observação é incorporada ao contexto até confirmação. Imagens pertencem ao perfil e são servidas por IDs validados.
 
-| Mode | Behavior | Data sent to cloud |
-|---|---|---|
-| Automatic | Probe Ollama; use it if reachable. Otherwise Gemini is eligible only if fallback and consent are both saved. | Only after the user explicitly enables cloud fallback and only when local Ollama is unreachable. |
-| Ollama only | Use configured Ollama model and endpoint. Errors stay visible. | None from this app. |
-| Gemini only | Use configured Gemini API key and model. | The conversation context and selected saved notes go to Google. |
+O módulo desktop registra F8/F9/F10 com RegisterHotKey; falhas ficam no diagnóstico. Sounddevice grava áudio mono a 16 kHz, limitado a 60 s. Um HUD Tkinter exibe legendas em janela sempre no topo. Eventos desktop têm sequência e perfil; a interface mantém um cursor para evitar reenviar transcrições.
 
-There is no paid-provider fallback. A provider can still impose charges depending on the user's Google API project/account configuration; the app cannot verify account billing status. Check Google AI Studio / Cloud billing before use.
+## Rede, cancelamento e medições
 
-## Latency design
+Requests vindos de outra origem e hosts fora de localhost são rejeitados. Mutações usam JSON ou upload multipart. Chaves ficam no Credential Manager ou em variável de ambiente.
 
-Provider chunks update text immediately. The UI queues completed sentences for browser speech synthesis while later chunks continue arriving. Browser speech starts after a sentence boundary, or after final output for a short reply with no sentence delimiter. The speech rate setting changes synthesis rate. Stop cancels both speech and the active UI request.
+Uma resposta por vez é permitida. O botão/F9 cancela o cliente e sinaliza o gerador. Ollama possui um watcher de cancelamento que fecha o socket inclusive enquanto aguarda os headers de carregamento. No Gemini, a interrupção do socket começa após os headers; a espera inicial continua limitada pelo timeout. Fechar a conexão não garante interrupção imediata do processamento no servidor ou de um driver. Gemini 429 não dispara repetição automática.
 
-Speech recognition is deliberately local and on CPU so it does not compete with the game for GPU resources. It is not streaming recognition yet: the push-to-talk recording is transcribed after release, then the transcript is sent to the AI. This is the principal first-turn latency limitation.
+Métricas registram transcrição, primeiro texto, resposta completa e memória do processo. O desempenho junto do jogo não é inferido dessas métricas.
 
-## Game awareness path
 
-No game data is read in this milestone. The next safe integration path is an explicit user-triggered screenshot/OCR and read-only save parsing, behind visible controls and a provenance distinction between verified data and AI inference. NMS Companion demonstrates offline save cataloguing/OCR as a separate application, but its code reuse/license status has not been cleared. WingmanAI plus its NMS profile is the strongest existing voice assistant reference; it has setup/account and configuration-version trade-offs. Native in-game character injection is not assumed feasible or safe for the prototype.
+## Atualização de estabilidade
+
+O launcher mantém um lock de instância durante preparação e execução e recusa porta local ocupada. O áudio nativo usa um worker com fila limitada; abrir, abortar e fechar o dispositivo não ocorre na thread do HUD/atalhos. Transcrição e OCR nativos são single-flight. Épocas de sessão e IDs de gravação descartam resultados/timers antigos após cancelamento ou troca de personagem.
+
+Logs locais com rotação e registro de falhas ficam em logs dentro da pasta de dados. O monitor de recursos registra pressão de RAM; isso não identifica automaticamente a causa de um crash do NMS.
+
+Configuração avançada e metadados do modelo permitem controlar contexto/geração/espera. A janela de 32k é preservada como opção; não há redução obrigatória baseada só no tamanho anunciado pelo modelo.
+
+## Exact reports and interface language
+
+Explicit saved-data reporting requests use companion/grounding.py and stream app-formatted values with the Save reader source. This route does not probe providers or load credentials. General chat retains the selected model, cancellation and persistence path. Advice-only requests remain model-driven.
+
+The browser i18n module translates registered UI labels and common statuses. The EN/PT preference stays in localStorage, separate from the STT setting. Chat requests carry ui_locale for app-response fallback; the message language takes priority when detected. User/model text is not translated.

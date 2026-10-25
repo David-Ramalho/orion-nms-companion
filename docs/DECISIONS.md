@@ -35,3 +35,8 @@
 **Decision:** No injection, memory reading, save-file writing, or unconfirmed keystrokes in this prototype.
 
 **Reason:** Current feasibility, compatibility, safety, and game update impact are unverified. Start with screenshot/OCR and read-only save parsing after explicit implementation approval of their boundaries.
+
+
+## 2026-10-24 — Local exploration integration
+
+Extend the Flask/SQLite prototype with per-character journals and snapshots. Prefer bounded PC LZ4 parsing with a pinned external key map over invoking the optional CLI for PC saves. Keep screenshot OCR user-triggered and reviewed. Use CPU speech/OCR, native RegisterHotKey/Tkinter HUD, and retain manual Ollama/Gemini selection. Native desktop acceptance still requires the normal Windows game session.

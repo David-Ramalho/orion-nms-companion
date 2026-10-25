@@ -1,26 +1,69 @@
-# Testing and verification log
+# Verification — 25 October 2026
 
-## Environment research
+Environment: Windows, Python 3.12, Chrome/Playwright. **86 automated tests pass** in the final integrated suite.
 
-- Development and automated checks were run on Windows with Python 3.12.
-- The Ollama endpoint was unavailable during the test session; no live local-model request was made.
-- No live Gemini request was made. Provider behavior is covered with mocked response streams only.
-- Live browser, microphone, speech output, and in-game behavior remain user-side validation items.
+## What the tests cover
 
-## Milestone verification
+- Read-only save decoding, size bounds, unmapped fields, stable file reads and snapshot deduplication.
+- Profile isolation across chat, fixed memories, journal, exports and save data.
+- Config validation, atomic saves and independent model settings, including 32768 context.
+- Ollama/Gemini stream parsing, consent boundaries, provider errors and resource cleanup.
+- Cancellation while a local HTTP server is waiting to send headers.
+- Clearing a conversation while streaming, without restoring an old reply.
+- Exact save reports, missing-data handling and source attribution without a provider or credentials.
+- EN/PT report detection and advice questions remaining on the normal model path.
+- Bounded desktop audio/capture work, stale-result rejection and launcher protection.
+- Audio decoding with synthetic silence; this does not test real speech comprehension.
 
-| Check | Result | Evidence / next step |
-|---|---|---|
-| Python syntax | Passed | `python -m compileall -q companion tests`. |
-| Flask route and memory tests | Passed | `.venv\Scripts\python.exe -m unittest discover -s tests -v`: 8 tests pass, including local page, persisted memory, Gemini consent gate, and uploaded WAV decoding. |
-| Streaming provider adapters | Passed with mocks | Ollama NDJSON and Gemini SSE parsing/key header tested using fixture streams; no live service request made. |
-| Runtime imports | Passed | Installed `Flask 3.1.3`, `faster-whisper 1.2.1`, `av 18.1.0`, and `keyring 25.7.0`; imports succeeded. The required Whisper model weights are not downloaded yet. |
-| Speech decoder compatibility | Passed | Reproduced the reported `metadata_errors` failure with PyAV 19.0.1, pinned `av<19`, installed PyAV 18.1.0, and confirmed the faster-whisper WAV decoder test passes. |
-| Mic / local Whisper | Pending | Requires browser permission and model download on the user's PC. |
-| Subtitle and spoken overlap | Pending | Requires opening UI in Chrome/Edge with an available system voice. |
-| Ollama | Not available at research time | Start existing local Ollama service/container on D: and select an installed model. |
-| Gemini | Not tested | User adds own key in app. No key should be pasted into chat or committed. |
-| Live loopback HTTP probe | Blocked in sandbox | Server started and printed its loopback URL, but a separate sandbox HTTP client could not reach the server. Flask test-client route tests pass; user launch remains needed for browser/mic validation. |
-| NMS in-game behavior | Not implemented | External exosuit UI only; no screenshot/OCR, save parsing, event detection, overlay, native body, or following. Native body/following remains unverified. |
+New grounding tests use fictional currencies, counts and base names. Private saves, transcripts and diagnostic captures are excluded from Git.
 
-Update this table with actual outcomes; never mark machine-dependent behavior as passing from mocks alone.
+## Browser verification
+
+The integrated smoke test passes with no JavaScript page errors and no horizontal overflow at 390 px.
+
+It covers journal creation/search, fake-provider streaming, reload persistence, profile isolation, reviewed OCR, model-specific parameters, clearing during a stream, a save import and direct report, and EN/PT switching.
+
+The locale test checks that drafts, the chosen model and speech-recognition language survive a UI-language change; the language preference survives reload. User-authored journal text stays unchanged.
+
+## Native and real-data checks
+
+- A real PC save was read and its source hash stayed unchanged. Supported currency, base, address and readable inventory data were extracted. The original and its identifiers are not committed.
+- RapidOCR recognized a synthetic English test image. Windows OCR was unavailable in the restricted environment.
+- Multilingual Whisper tiny loaded on CPU/int8; synthetic silence produced no transcript.
+- The launcher and local endpoints started with existing user data. Log files were created.
+
+## Real model observations
+
+Ollama responded to catalog/metadata requests. Liquid32k produced a generic visible answer with a 32768 context request. A cold load took about 17 seconds to first output; a warm generic response took about 4.8 seconds. These are observations, not performance guarantees.
+
+A later grounding check sent correct save facts to Liquid 1.2B Instruct at temperature 0.1. It miscopied a balance in a short prompt and mixed balances with container counts in a larger prompt without conversation history. This demonstrates a generation/grounding failure in that tested setup; a unit-test pass does not establish LLM answer accuracy.
+
+A raw-template comparison could not complete because the local Ollama service subsequently refused connections. The tests do not isolate model weights, quantization, runtime and template behavior from each other. See [the diagnosis](MODEL-GROUNDING.md).
+
+Exact save reports now bypass model generation and are verified with provider calls set to fail. General chat can still hallucinate. No comparative Granite/Qwen benchmark or live Gemini success is claimed.
+
+## Still needs normal desktop testing
+
+- Physical microphone quality in English/Portuguese and browser voice output.
+- F8/F9/F10 registration and capture/HUD behavior in a normal Windows session.
+- A sustained NMS session with FPS, frametime and RAM/VRAM observations.
+- Real-provider behavior with long conversations, different models and game load.
+
+The empty NMS crash dump did not identify the crash cause.
+
+## Run locally
+
+```powershell
+New-Item -ItemType Directory -Force .tmp, .test-data | Out-Null
+$env:PYTHONPATH = (Join-Path (Get-Location) '.packages') + ';' + (Join-Path (Get-Location) 'tests')
+$env:NMS_COMPANION_DATA = Join-Path (Get-Location) '.test-data'
+$env:TEMP = Join-Path (Get-Location) '.tmp'
+$env:TMP = $env:TEMP
+python -m unittest discover -s tests -v
+```
+
+Replace `.packages` with `.runtime/packages` when appropriate. Keep real user data out of test runs.
+
+For browser QA, start `python tests/qa_server.py`, then run `node tests/browser_smoke.cjs` with Playwright installed. `ORION_PLAYWRIGHT` can point at an existing installation; Chrome's path can be set through `CHROME_PATH`.
+
+The browser fixture uses a fake provider and synthetic save data. Its OCR upload is generated by `tests/native_smoke.py` in the local test folder; it is not a committed game screenshot.

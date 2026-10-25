@@ -1,45 +1,85 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Orion · Exosuit Companion</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/tweaks.css">
 </head>
 <body>
 <div class="shell">
-  <header><div class="sigil">✦</div><div><div class="eyebrow">NO MAN'S SKY · FIELD COMPANION</div><h1>ORION <span>ORI · EXOSUIT AI</span></h1></div><div class="status"><i id="lamp"></i><span id="statusText">Checking systems…</span></div></header>
-  <main>
+  <header><div class="sigil" aria-hidden="true">✧</div><div><div class="eyebrow">NO MAN'S SKY · FIELD COMPANION</div><h1>ORION <span>ORI · EXOSUIT AI</span></h1></div><div class="status"><i id="lamp"></i><span id="statusText">Verificando sistemas…</span></div></header>
+  <nav class="topnav"><button id="chatTab" class="selected">Conversa</button><button id="expeditionTab">Expedição & diário</button><select id="profileSelect" aria-label="Personagem"></select><button id="newProfile">+ Personagem</button><label class="locale-switch"><span>Idioma da interface</span><select id="uiLocale" aria-label="Idioma da interface"><option value="en">English</option><option value="pt">Português</option></select></label></nav>
+  <main id="chatPanel">
     <section class="conversation">
-      <div class="scene"><div class="planet"></div><div class="scene-copy"><span>EXOSUIT LINK ESTABLISHED</span><b>Ready when you are, Traveller.</b></div></div>
-      <div class="messages" id="messages" aria-live="polite"><div class="msg assistant"><div class="who">ORION <small>ORI · EXOSUIT</small></div><div class="bubble">I’m here. Tell me what you’ve found, or ask me anything while you explore. I’ll show text as soon as it arrives and speak in parallel.</div></div></div>
-      <div class="composer"><button class="mic" id="mic" title="Push to talk">◉<small>HOLD</small></button><textarea id="prompt" rows="2" placeholder="Talk to Orion or type a message… (Enter to send)"></textarea><button id="send" class="send">SEND ↗</button></div>
-      <div class="toolbar"><span id="hint">Hold the mic button to record · local English transcription</span><div><button id="stop" class="quiet" disabled>■ Stop voice</button><button id="clear" class="quiet">Clear chat</button></div></div>
+      <div class="scene"><div class="planet"></div><div class="scene-copy"><span>EXOSUIT LINK ESTABLISHED</span><b>Pronto para explorar, Viajante.</b></div></div>
+      <div class="messages" id="messages" aria-live="polite"><div class="msg assistant"><div class="who">ORION <small>ORI · EXOSUIT</small></div><div class="bubble">Estou aqui. Conte o que encontrou ou pergunte sobre sua jornada. Posso usar o diário e o último save que você vinculou.</div></div></div>
+      <div class="composer"><button class="mic" id="mic" title="Segure para falar" aria-label="Segure para falar">●<small>FALAR</small></button><textarea id="prompt" rows="2" placeholder="Fale com Ori ou escreva aqui… (Enter envia)" aria-label="Mensagem para Ori"></textarea><button id="send" class="send">ENVIAR ↗</button></div>
+      <div class="toolbar"><span id="hint">F8 falar/enviar · F9 parar · F10 capturar · launcher desktop</span><div><button id="stop" class="quiet">Parar resposta</button><button id="clear" class="quiet clear-chat">Nova conversa</button></div></div>
     </section>
     <aside>
-      <section class="card"><div class="cardhead"><div><span class="eyebrow">CONNECTION</span><h2>AI systems</h2></div><button id="refresh" class="icon">↻</button></div>
-        <label>Provider mode<select id="provider"><option value="auto">Automatic · local first</option><option value="ollama">Ollama only</option><option value="gemini">Gemini only</option></select></label>
-        <div class="provider-line"><span class="dot" id="ollamaDot"></span><span>Ollama local</span><span class="right" id="ollamaLabel">Checking</span></div>
-        <label>Ollama model <select id="model"><option value="">Loading installed models…</option></select></label>
-        <label>Ollama address<input id="ollamaUrl" value="http://127.0.0.1:11434"></label>
-        <div class="provider-line"><span class="dot" id="geminiDot"></span><span>Gemini API</span><span class="right" id="geminiLabel">Key not set</span></div>
-        <label>Gemini model<input id="geminiModel" value="gemini-3.8-flash"></label>
-        <div class="keyrow"><input type="password" id="apiKey" placeholder="Paste Gemini key (stored in Windows)" autocomplete="new-password"><button id="saveKey" class="smallbtn">SAVE</button></div>
-        <label class="check"><input type="checkbox" id="cloudConsent"> I accept Gemini cloud processing</label>
-        <label class="check"><input type="checkbox" id="cloudFallback"> Allow Gemini as Auto fallback</label>
-        <p class="note">Cloud calls send prompts and selected memories to Google. Unpaid-tier data may be used to improve products and reviewed by people. Check your Google project billing and current quotas; this prototype cannot cap charges if your project has billing enabled or free limits change. Ollama is not running now, so Automatic needs opt-in fallback to answer.</p>
-        <button id="saveSettings" class="fullbtn">SAVE CONNECTION SETTINGS</button>
+      <section class="card"><div class="cardhead"><div><span class="eyebrow">CONEXÃO</span><h2>Sistemas de IA</h2></div><button id="refresh" class="icon" title="Verificar conexão" aria-label="Atualizar conexão">↻</button></div>
+        <label>Provedor<select id="provider"><option value="auto">Automático · local primeiro</option><option value="ollama">Somente Ollama</option><option value="gemini">Somente Gemini</option></select></label>
+        <div class="provider-line"><span class="dot" id="ollamaDot"></span><span>Ollama local</span><span class="right" id="ollamaLabel">Verificando</span></div>
+        <label>Modelo local<select id="model"><option value="">Buscando modelos instalados…</option></select></label>
+        <details class="model-settings"><summary>Parâmetros deste modelo <span>contexto, geração e conexão</span></summary>
+          <p class="note" id="modelInfo">Os parâmetros ficam associados ao modelo selecionado.</p>
+          <button id="modelDefaults" class="quiet">Usar padrões do modelo</button>
+          <div class="parameter-grid">
+            <label>Contexto · tokens<input id="contextSize" type="number" min="0" max="1048576" step="1" value="32768"></label>
+            <label>Saída máxima · tokens<input id="outputTokens" type="number" min="1" max="65536" step="1" value="512"></label>
+            <label>Temperatura<input id="temperature" type="number" min="0" max="2" step="0.05" value="0.7"></label>
+            <label>Threads da CPU<input id="threads" type="number" min="0" max="128" step="1" value="0"></label>
+            <label>Manter carregado<input id="keepAlive" value="5m" placeholder="5m, 30m, 0s ou -1"></label>
+            <label>Espera máxima · segundos<input id="providerTimeout" type="number" min="15" max="900" step="1" value="180"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="modelThink"> Raciocínio interno, se o modelo suportar</label>
+          <p class="note">Contexto 0 e threads 0 usam os padrões do Ollama. Manter carregado: 0s libera após a resposta; -1 mantém na memória. A espera inclui o carregamento inicial. Contexto disponível e consumo dependem do modelo e do hardware.</p>
+          <label>Endereço do Ollama<input id="ollamaUrl" value="http://127.0.0.1:11434" spellcheck="false"></label>
+          <button id="unloadModel" class="quiet">Liberar modelo da memória</button>
+        </details>
+        <details id="cloudSettings" class="cloud-settings"><summary>Gemini · opção na nuvem</summary>
+          <div class="provider-line"><span class="dot" id="geminiDot"></span><span>Gemini API</span><span class="right" id="geminiLabel">Sem chave</span></div>
+          <label>Modelo Gemini<input id="geminiModel" value="gemini-2.5-flash" list="googleModels"></label>
+          <datalist id="googleModels"></datalist><button id="refreshGoogle" class="quiet">Consultar modelos da minha chave</button>
+          <div class="keyrow"><input type="password" id="apiKey" placeholder="Chave Gemini" autocomplete="new-password" aria-label="Chave da API Gemini"><button id="saveKey" class="smallbtn">SALVAR CHAVE</button></div>
+          <label class="check"><input type="checkbox" id="cloudConsent"> Permitir processamento pelo Gemini</label>
+          <label class="check"><input type="checkbox" id="cloudFallback"> Permitir Gemini se o Ollama falhar no modo Auto</label>
+          <p class="note">Perguntas e memórias selecionadas são enviadas ao Google. No nível gratuito, os dados podem ser usados para melhorar produtos e revisados por pessoas. Gratuidade e limites dependem do modelo e do seu projeto no AI Studio. ChatGPT Plus/Pro é separado de uma API.</p>
+        </details>
+        <button id="saveSettings" class="fullbtn">SALVAR CONFIGURAÇÕES</button>
+        <p class="note save-help">Salva conexão, parâmetros, voz e personalidade. O provedor real aparece em cada nova resposta.</p>
       </section>
-      <section class="card"><span class="eyebrow">VOICE & TEXT</span><h2>Make it yours</h2>
-        <label>Voice<select id="voice"><option value="">System default</option></select></label>
-        <label>Speaking speed <span class="right"><b id="rateLabel">1.20×</b></span><input id="rate" type="range" min="0.7" max="2" step="0.05" value="1.2"></label>
-        <label>Companion personality<textarea id="persona" rows="4" placeholder="How should Orion sound and behave?"></textarea></label>
-        <label>Local speech recognition<select id="stt"><option value="base.en">Balanced · base English (about 150 MB)</option><option value="tiny.en">Fast · tiny English (about 75 MB)</option></select></label>
-        <p class="note">First mic use downloads the selected Whisper model. Transcription runs locally on CPU. Spoken output uses Windows/browser voices; subtitles never wait for speech.</p>
+      <section class="card"><span class="eyebrow">VOZ & TEXTO</span><h2>Do seu jeito</h2>
+        <label>Voz<select id="voice"><option value="">Padrão do sistema</option></select></label>
+        <label>Velocidade <span class="right"><b id="rateLabel">1.20x</b></span><input id="rate" type="range" min="0.7" max="2" step="0.05" value="1.2"></label>
+        <label class="check"><input type="checkbox" id="ttsEnabled" checked> Ler respostas em voz alta</label>
+        <details><summary>Idioma, personalidade e transcrição</summary>
+          <label>Personalidade de Ori<textarea id="persona" rows="4" placeholder="Como Ori deve falar e se comportar?"></textarea></label>
+          <label>Idioma da voz<select id="language"><option value="auto">Detectar PT / EN</option><option value="pt">Português</option><option value="en">English</option></select></label>
+          <label>Estilo<select id="replyStyle"><option value="explorer">Explorador</option><option value="technical">Técnico</option><option value="narrative">Narrativo</option></select></label>
+          <label class="check"><input type="checkbox" id="quietMode"> Silenciar comentários espontâneos</label>
+          <label>Reconhecimento de fala local<select id="stt"><option value="tiny">Rápido · tiny multilíngue</option><option value="base">Equilibrado · base multilíngue</option><option value="tiny.en">tiny · apenas inglês</option><option value="base.en">base · apenas inglês</option></select></label>
+          <p class="note">O primeiro uso baixa o modelo Whisper. A transcrição roda na CPU. A voz usa o navegador/Windows e acompanha o texto.</p>
+        </details>
       </section>
-      <section class="card memorycard"><div class="cardhead"><div><span class="eyebrow">PERSISTENT MEMORY</span><h2>Mission notes</h2></div><button id="addFact" class="smallbtn">+ NOTE</button></div>
-        <p class="note">Saved on this PC and recalled in future conversations. Add your ship, goals, discoveries, or preferences.</p><div id="facts" class="facts"></div>
+      <section class="card memorycard"><div class="cardhead"><div><span class="eyebrow">MEMÓRIA PERSISTENTE</span><h2>Lembrar sempre</h2></div><button id="addFact" class="smallbtn">+ MEMÓRIA</button></div>
+        <p class="note">Preferências e fatos que você quer guardar. O diário tem registros por personagem. Nova conversa mantém ambos.</p><div id="facts" class="facts"></div>
       </section>
     </aside>
   </main>
-  <footer><span>ORION // EXPLORATION SUPPORT SYSTEM</span><span>LOCAL UI · DATA STORED ON THIS PC</span></footer>
-</div><script src="/static/app.js"></script>
+  <section id="expeditionPanel" hidden>
+    <div class="expedition-heading"><div><span class="eyebrow">ARQUIVO DE EXPLORAÇÃO</span><h2>Seu universo, lembrado.</h2><p>O save traz dados do jogo; o diário guarda suas descobertas, planos e histórias.</p></div><button id="sessionSummary" class="fullbtn">Resumo da sessão</button></div>
+    <div class="expedition-grid">
+      <section class="card"><span class="eyebrow">RETOMAR VIAGEM</span><h2>Seus próximos passos</h2><p class="note">Objetivos escritos por você no diário. O livro de missões do NMS ainda não é importado automaticamente.</p><div id="briefing"></div><button id="askBriefing" class="quiet">Conversar sobre os próximos passos ↗</button></section>
+      <section class="card"><span class="eyebrow">CONTEXTO DO JOGO</span><h2>Último save lido</h2><p class="note">Funciona com o NMS fechado. Durante o jogo, novos dados chegam depois que o jogo salva. Bases e itens dependem do conteúdo e do formato do save.</p><p id="saveStatus">Nenhum save importado.</p><div id="saveOverview" class="save-overview"></div><details><summary>Dados extraídos do save</summary><pre id="gameSnapshot"></pre></details><label>Arquivo local<select id="saveCandidate"><option value="">Selecione um save encontrado</option></select></label><input id="savePath" placeholder="Caminho de .hg ou JSON exportado" aria-label="Caminho do save"><div class="buttonrow"><button id="bindSave" class="smallbtn">Vincular & acompanhar</button><button id="syncSave" class="quiet">Atualizar</button><button id="unbindSave" class="quiet">Desvincular</button></div><label>Importar arquivo<input id="saveUpload" type="file" accept=".json,.hg"></label><details><summary>Leitor de saves e formatos</summary><p class="note">O original é somente lido. Saves PC .hg usam o leitor LZ4 integrado com mapa de chaves versionado. libNOM CLI é uma alternativa para outros formatos. JSON com chaves legíveis também é aceito.</p><input id="libnom" placeholder="Caminho de libNOM.cli.exe" aria-label="Caminho libNOM CLI"><p class="note">Salve o caminho em SALVAR CONFIGURAÇÕES.</p></details></section>
+      <section class="card"><span class="eyebrow">VISOR CIENTÍFICO</span><h2>Registrar uma observação</h2><p class="note">F10 captura a janela do NMS. Revise o texto antes de incorporar à memória.</p><button id="captureGame" class="fullbtn">Capturar NMS & ler texto</button><label>Ou enviar uma imagem<input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp"></label><p id="captureStatus"></p></section>
+      <section class="card"><span class="eyebrow">SISTEMAS</span><h2>Desempenho & atalhos</h2><pre id="diagnostics"></pre><p class="note">F8 alterna gravação/envio. F9 interrompe resposta e voz. F10 captura. O HUD abre com o launcher desktop. Use NMS sem bordas.</p><button id="refreshDiagnostics" class="quiet">Atualizar diagnóstico</button></section>
+    </div>
+    <section class="card"><div class="cardhead"><div><span class="eyebrow">DIÁRIO DO CAPITÃO</span><h2>Lugares, projetos & histórias</h2></div><a id="exportJournal" class="smallbtn" href="/api/journal/export">Exportar JSON</a></div>
+      <p class="note">Este é o seu livro de exploração com Ori: anotações manuais, observações confirmadas e resumos. Campos vazios significam que você ainda não criou registros aqui.</p>
+      <form id="journalForm" class="journal-form"><select id="entryKind" aria-label="Tipo do registro"><option value="note">Anotação</option><option value="place">Lugar / base / colônia</option><option value="goal">Objetivo pessoal</option><option value="lore">Lore do império</option></select><input id="entryTitle" required maxlength="180" placeholder="Título"><input id="entryLocation" maxlength="500" placeholder="Planeta / sistema / endereço"><textarea id="entryContent" required maxlength="8000" placeholder="O que Ori deve lembrar?"></textarea><button class="fullbtn">Guardar no diário</button></form>
+      <input id="journalSearch" type="search" placeholder="Pesquisar lugares, materiais, nomes…" aria-label="Pesquisar diário"><div id="journalEntries"></div></section>
+  </section>
+  <dialog id="scanDialog"><h2>Revise a observação</h2><p id="scanNotice"></p><img id="scanImage" alt="Captura do jogo para revisão"><input id="scanTitle" placeholder="Título" value="Observação do visor"><textarea id="scanText" rows="8" placeholder="Revise o OCR ou descreva a imagem…"></textarea><div class="buttonrow"><button id="confirmScan" class="fullbtn">Confirmar & guardar</button><button id="cancelScan" class="quiet">Descartar</button></div></dialog>
+  <footer><span>ORION // EXPLORATION SUPPORT SYSTEM</span><span>INTERFACE LOCAL · DADOS NESTE PC</span></footer>
+</div><script src="/static/i18n.js"></script><script src="/static/app.js"></script><script src="/static/exploration.js"></script>
 </body></html>

@@ -1,27 +1,32 @@
-# Privacy and data flows
+# Dados e conexões
 
-## Local by default
+O servidor é local, em 127.0.0.1. Não publique essa porta na rede.
 
-- Flask listens on loopback (`127.0.0.1`) only.
-- Audio captured in the browser is posted to the local Flask server and transcribed by local `faster-whisper` after its model is downloaded.
-- Browser speech synthesis runs through installed browser/Windows voices.
-- Settings, history, and notes stay under `%LOCALAPPDATA%\NMS-Exosuit-Companion`.
-- The Gemini key is stored via Windows Credential Manager if available. It is not included in SQLite or the project files.
+## Armazenamento
 
-## Cloud behavior
+Por padrão, launch.py mantém os dados privados em .runtime/userdata. O banco SQLite contém conversas, notas, diário, snapshots normalizados e medições de tempo, separados por personagem. Capturas ficam em uma pasta do personagem. Arquivos de áudio temporários são removidos após transcrição.
 
-- Pinned Gemini mode sends conversation messages and the configured persona/system prompt to Google's Gemini API. The app adds saved mission notes and up to 16 recent messages as context.
-- Automatic mode sends those same text fields only after the explicit cloud fallback toggle is saved and Ollama is unreachable.
-- The prototype does not send microphone audio to Gemini.
-- The API key is sent in the `x-goog-api-key` HTTP header.
-- Google's terms, account tier, region, quotas, retention, and billing are controlled by Google and the user's account and can change. The app cannot enforce project billing, free-tier availability, or spending limits. Review Google's current terms and pricing before enabling cloud use.
-- The app does not use Google Fonts or other remote assets in its UI.
+O arquivo settings.json contém preferências e caminhos de saves, sem a chave Gemini. A chave usa Windows Credential Manager; GEMINI_API_KEY é uma alternativa. O endereço do Ollama é configurável e deve apontar para um servidor em que você confie.
 
-See [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) and [Gemini API additional terms](https://ai.google.dev/gemini-api/terms) for current conditions; these can change.
+## Fluxos
 
-## Controls and limitations
+- Microfone → transcrição local CPU → texto.
+- Captura da região visível do NMS → OCR local → revisão → anotação.
+- Save vinculado → leitura estável → normalização local → snapshot.
+- Pergunta + persona + notas/diário selecionados + dados relevantes do último save → provedor escolhido.
 
-- Leave Gemini unconfigured and use Ollama-only to keep prompt text local.
-- Clear conversation history from the UI; this does not clear mission notes. Notes are not currently removable individually from the UI.
-- This is a prototype local server without authentication or hardened CSRF defense. Keep it on loopback and do not port-forward it or expose it on a network.
-- Diagnostic errors may include provider error text. Do not share logs/screenshots containing API keys or sensitive mission notes.
+Ollama recebe esse texto no endereço configurado. Gemini recebe esse texto nos servidores do Google quando seu processamento é habilitado. A aplicação não envia áudio nem screenshots brutos ao Gemini. Consulte os termos, quota e faturamento do seu projeto no AI Studio.
+
+A primeira preparação baixa dependências Python, o mapa de chaves e, ao usar transcrição, os pesos do Whisper. Esses downloads são distintos das chamadas de conversa.
+
+## Retenção e exclusão
+
+Histórico pode ser limpo pela interface. Entradas do diário podem ser excluídas individualmente e exportadas em JSON. Excluir uma anotação não remove automaticamente o PNG anexado. Capturas descartadas também permanecem na pasta local até limpeza manual.
+
+Os arquivos originais do NMS são abertos somente para leitura. O leitor externo opcional recebe uma cópia temporária, nunca o original. Formatos não reconhecidos não produzem atualização do contexto.
+
+Pacotes, configurações, banco, capturas e modelos ficam fora dos commits. Antes de compartilhar uma cópia manual da pasta, exclua os diretórios de runtime e teste.
+
+## Interface preference and direct reports
+
+The EN/PT web-interface preference is stored in browser localStorage. It does not send user text to a translation service. A direct Save reader report is formatted locally without a provider request. General conversation still sends selected context to the configured provider. Local Ori does not import ChatGPT account memory or unrelated personal records.

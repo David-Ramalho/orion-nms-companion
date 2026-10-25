@@ -55,6 +55,8 @@ class CompanionTests(unittest.TestCase):
             response = self.client.post("/api/chat/stream", json={"text": "Hi"}, buffered=True)
         records = [json.loads(line) for line in response.data.decode().splitlines()]
         self.assertEqual([r["type"] for r in records], ["start", "delta", "delta", "done"])
+        self.assertEqual(records[0]["provider"],"Ollama")
+        self.assertEqual(records[0]["model"],"fixture")
         self.assertEqual(memory.history()[-1]["content"], "Hello Traveller.")
 
     def test_manual_gemini_requires_cloud_consent(self):

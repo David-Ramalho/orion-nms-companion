@@ -1,2 +1,68 @@
-textarea#persona { width:100%; color:var(--ink); background:#0b1117; border:1px solid #2a3741; border-radius:4px; padding:9px 10px; font:12px Manrope,Segoe UI,sans-serif; margin-top:6px; outline:none; resize:vertical; line-height:1.45 }
-textarea#persona:focus { border-color:#4f908b }
+[hidden]{display:none!important}
+body{overflow:auto}button,a,input,select,textarea{touch-action:manipulation}
+.topnav{display:flex;gap:10px;align-items:center;padding:14px 0;border-bottom:1px solid #294048;margin-bottom:18px;flex-wrap:wrap}
+.topnav button,.smallbtn{border:1px solid #34555d;background:#142b34;color:#bce9e0;padding:9px 14px;cursor:pointer;border-radius:8px}
+.topnav .selected{background:#68dcca;color:#0c2024}
+.topnav select{margin-left:auto;width:auto;max-width:240px}
+.expedition-heading{display:flex;align-items:center;justify-content:space-between;padding:24px 0;gap:20px}
+.expedition-heading .fullbtn{width:auto}.expedition-heading h2{font-size:30px;margin:6px 0}.expedition-heading p{color:#a4b7bf}
+.expedition-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.expedition-grid .card{margin:0}
+#expeditionPanel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:12px;color:#a5c5cd}
+.buttonrow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.buttonrow .fullbtn{width:auto}
+.journal-form{display:grid;grid-template-columns:180px 1fr 1fr;gap:12px;margin:18px 0}.journal-form textarea{grid-column:1/-1;min-height:90px}.journal-form button{width:auto;grid-column:3}
+#journalEntries article{border-top:1px solid #294048;padding:18px 0}
+#journalEntries h3{margin:4px 0 8px}#journalEntries p{white-space:pre-wrap;line-height:1.6}
+#journalEntries .meta{font-size:11px;letter-spacing:.04em;color:#80a8b2}
+#journalEntries .entry-image{max-height:180px;max-width:100%;border-radius:8px;margin:12px 0}
+dialog{width:min(780px,90vw);max-height:90vh;overflow:auto;background:#13232e;color:#e9f3f5;border:1px solid #50717a;border-radius:16px;padding:24px}
+dialog::backdrop{background:#050c14cc}dialog img{max-width:100%;max-height:320px;display:block;margin:12px auto}dialog textarea,dialog input{width:100%;margin:10px 0}
+#briefing .brief-item{border-left:2px solid #68dcca;padding:5px 12px;margin:12px 0}
+.note.error,#captureStatus.error{color:#ffbba3}.quiet{cursor:pointer}
+@media(max-width:850px){.expedition-grid{grid-template-columns:1fr}.journal-form{grid-template-columns:1fr}.journal-form button{grid-column:1}.expedition-heading{align-items:flex-start;flex-direction:column}.topnav select{margin-left:0}}
+
+textarea{font:14px 'Segoe UI',sans-serif;color:var(--ink);background:#0b1117;border:1px solid #2a3741;border-radius:6px;padding:10px;resize:vertical;max-width:100%}
+.card textarea{width:100%;margin-top:8px}
+.conversation{min-height:calc(100vh - 220px);max-height:calc(100vh - 220px)}aside{max-height:calc(100vh - 220px)}
+@media(max-width:950px){.conversation{min-height:65vh;max-height:80vh}aside{max-height:none}}
+
+#expeditionPanel>.card{margin-top:18px}
+
+.engine-badge{display:inline-block;margin-left:10px!important;color:#eab96d!important;opacity:1!important;font-size:10px!important;letter-spacing:0}.status{max-width:55%;line-height:1.4}#settingsNotice{color:#eab96d}
+
+/* Compact connection controls and readable status without competing with chat. */
+details{border-top:1px solid var(--line);margin:14px 0;padding-top:12px}
+summary{cursor:pointer;color:#c6d8db;font-size:12px;line-height:1.6;list-style-position:outside;margin-left:15px}
+summary span{display:block;color:var(--muted);font-size:10px;letter-spacing:.01em}
+details[open]>summary{color:var(--cyan);margin-bottom:10px}
+.model-settings .parameter-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.parameter-grid label{min-width:0}.parameter-grid input{width:100%;min-width:0}
+#modelInfo{color:#9bb6bd;overflow-wrap:anywhere}
+.model-settings .quiet{font-size:11px;line-height:1.6;text-align:left}
+.cloud-settings .keyrow{margin-top:12px;flex-wrap:wrap}
+.cloud-settings .keyrow input{min-width:150px}
+.cloud-settings .note{margin-bottom:0}
+#saveSettings{margin-top:12px}
+.save-help{margin-bottom:0}
+.scene{height:120px}.scene-copy{top:28px}.planet{top:15px}
+.conversation{min-height:calc(100vh - 245px);max-height:calc(100vh - 245px)}
+aside{max-height:calc(100vh - 245px)}
+.toolbar{gap:10px;align-items:center;min-height:44px}
+.toolbar>span{line-height:1.5;overflow-wrap:anywhere}
+.toolbar>div{gap:10px;flex-shrink:0}
+.toolbar .quiet{line-height:1.4}
+.clear-chat{padding:7px 9px;border:1px solid #34504f;border-radius:5px;color:#bdd3d3;white-space:nowrap}
+.clear-chat:hover{border-color:var(--cyan)}
+.messages{overscroll-behavior:contain}
+.bubble{overflow-wrap:anywhere}.engine-badge{overflow-wrap:anywhere}
+button:disabled{opacity:.5;cursor:wait}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+.save-overview{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.save-stat{background:#0c141c;border:1px solid #283740;border-radius:6px;padding:12px}
+.save-stat span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}
+.save-stat b{font-size:17px;font-weight:500;color:#c5e2de}
+.save-overview>.note{grid-column:1/-1;margin:0}
+#saveStatus{color:#a6bbc2;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+@media(max-width:950px){.conversation{min-height:65vh;max-height:80vh}aside{max-height:none}.scene{height:100px}.scene-copy{top:22px}.scene-copy b{font-size:21px}}
+@media(max-width:540px){header{gap:9px;height:auto;min-height:88px;flex-wrap:wrap;padding:12px 0}.status{margin-left:0;max-width:100%;flex-basis:100%;font-size:9px}.sigil{width:32px;height:32px;flex-shrink:0}h1 span{font-size:10px}.eyebrow{font-size:9px}.topnav{gap:7px}.topnav button{padding:8px 10px}.topnav select{max-width:180px}.toolbar{align-items:flex-start;flex-wrap:wrap;padding-top:5px}.toolbar>span{max-width:100%;flex-basis:100%}.toolbar>div{margin-left:auto}.composer textarea{min-width:0;font-size:13px}.send{padding:8px 10px}.mic{flex-shrink:0}.expedition-heading h2{font-size:26px}.journal-form{min-width:0}.journal-form input,.journal-form select{min-width:0}.card{min-width:0}.expedition-grid{min-width:0}}
+
+.locale-switch{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:10px;white-space:nowrap}.locale-switch select{width:108px;max-width:108px;margin:0;padding:8px}.locale-switch>span{font-size:9px}@media(max-width:540px){.locale-switch{margin-left:auto}.locale-switch>span{display:none}.locale-switch select{width:100px}}
