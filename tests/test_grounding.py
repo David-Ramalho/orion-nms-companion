@@ -41,11 +41,85 @@ class GroundingTests(unittest.TestCase):
              patch.object(module.providers,"ollama_stream",return_value=iter(["wrong: 100 units"])) as llm, \
              patch.object(module.providers,"gemini_stream",side_effect=AssertionError("No cloud call")):
             response=self.client.post("/api/chat/stream?profile="+profile,
-                                      json={"text":text,"ui_locale":locale},buffered=True)
+                                      json={"text":text,"ui_locale":locale,"response_mode":"facts"},buffered=True)
         self.assertEqual(response.status_code,200)
         llm.assert_not_called()
         records=[json.loads(line) for line in response.data.splitlines()]
         return records,records[-1].get("text","")
+
+    def test_default_save_question_calls_selected_ai_with_verified_reference(self):
+        cfg={**CONFIG,"provider_mode":"ollama","ollama_model":"chosen-custom-model"}
+        with patch.object(module,"load_config",return_value=cfg), \
+             patch.object(module,"get_key",return_value=None), \
+             patch.object(module.providers,"ollama_stream",return_value=iter(["An actual model answer."])) as llm:
+            response=self.client.post("/api/chat/stream",json={"text":QUESTION},buffered=True)
+        records=[json.loads(line) for line in response.data.splitlines()]
+        llm.assert_called_once()
+        self.assertEqual(llm.call_args.args[0]["ollama_model"],"chosen-custom-model")
+        prompt=llm.call_args.args[1][0]["content"]
+        for number in ("987654321","43210","2468"):
+            self.assertIn(number,prompt)
+        self.assertEqual(records[0]["provider"],"Ollama")
+        self.assertEqual(records[0]["model"],"chosen-custom-model")
+        self.assertEqual(records[0]["verified_save"]["currencies"],{"Units":987654321,"Nanites":43210,"Quicksilver":2468})
+        self.assertEqual(records[0]["verified_save"]["inventory_count"],7)
+        self.assertEqual(records[-1]["text"],"An actual model answer.")
+        self.assertNotIn("formatted by the app",records[-1]["text"])
+
+    def test_default_save_chat_does_not_silently_fall_back_to_fixed_report(self):
+        cfg={**CONFIG,"provider_mode":"ollama"}
+        with patch.object(module,"load_config",return_value=cfg), \
+             patch.object(module,"get_key",return_value=None), \
+             patch.object(module.providers,"ollama_stream",side_effect=module.providers.ProviderError("fixture offline")):
+            response=self.client.post("/api/chat/stream",json={"text":QUESTION},buffered=True)
+        records=[json.loads(line) for line in response.data.splitlines()]
+        self.assertEqual(records[0]["provider"],"Ollama")
+        self.assertEqual(records[0]["verified_save"]["base_count"],2)
+        self.assertEqual(records[-1]["type"],"error")
+        self.assertEqual(records[-1]["message"],"fixture offline")
+
+    def test_auto_connection_failure_still_provides_reference(self):
+        with patch.object(module,"load_config",return_value=CONFIG), \
+             patch.object(module,"get_key",return_value=None), \
+             patch.object(module.providers,"ollama_models",side_effect=module.providers.ProviderError("offline")):
+            response=self.client.post("/api/chat/stream",json={"text":QUESTION},buffered=True)
+        records=[json.loads(line) for line in response.data.splitlines()]
+        self.assertEqual(records[-1]["type"],"error")
+        self.assertEqual(records[-1]["verified_save"]["currencies"]["Units"],987654321)
+        self.assertEqual(records[-1]["verified_save"]["base_count"],2)
+
+    def test_verified_reference_does_not_leak_across_profiles(self):
+        other=memory.add_profile("No snapshot")
+        cfg={**CONFIG,"provider_mode":"ollama"}
+        with patch.object(module,"load_config",return_value=cfg), \
+             patch.object(module,"get_key",return_value=None), \
+             patch.object(module.providers,"ollama_stream",return_value=iter(["No save is linked."])):
+            response=self.client.post("/api/chat/stream?profile="+other,json={"text":QUESTION},buffered=True)
+        records=[json.loads(line) for line in response.data.splitlines()]
+        self.assertIsNone(records[0]["verified_save"])
+
+    def test_facts_mode_is_explicit_even_without_save_keywords(self):
+        records,text=self.request_report(text="Please.")
+        self.assertEqual(records[0]["provider"],"Save reader")
+        self.assertIn("987,654,321",text)
+
+    def test_ai_context_and_reference_share_one_snapshot(self):
+        cfg={**CONFIG,"provider_mode":"ollama"}
+        snap={"payload":self.payload,"observed_at":"2026-01-01T12:00:00Z","source":"fixture-save.json"}
+        with patch.object(module,"load_config",return_value=cfg), \
+             patch.object(module,"get_key",return_value=None), \
+             patch.object(memory,"latest_snapshot",return_value=snap) as latest, \
+             patch.object(module.providers,"ollama_stream",return_value=iter(["AI reply"])) as llm:
+            response=self.client.post("/api/chat/stream",json={"text":QUESTION},buffered=True)
+        latest.assert_called_once_with("default")
+        records=[json.loads(line) for line in response.data.splitlines()]
+        self.assertEqual(records[0]["verified_save"]["currencies"]["Units"],987654321)
+        self.assertIn("987654321",llm.call_args.args[1][0]["content"])
+
+    def test_invalid_response_mode_is_rejected(self):
+        response=self.client.post("/api/chat/stream",json={"text":QUESTION,"response_mode":"invented"})
+        self.assertEqual(response.status_code,400)
+        self.assertFalse(module._turn_lock.locked())
 
     def test_report_uses_exact_save_values_even_if_provider_would_be_wrong(self):
         records,text=self.request_report()

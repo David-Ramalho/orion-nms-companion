@@ -164,6 +164,37 @@ class ExplorationTests(unittest.TestCase):
         self.assertIn("mission book is not imported",context)
         self.assertIn("No save snapshot",context)
 
+    def test_normal_chat_context_keeps_facts_without_container_number_noise(self):
+        memory.store_snapshot("default","compact","fixture.json",memory.now(),
+            {"Units":123456,"Nanites":789,"Specials":42,"bases":[{"Name":"Fixture base"}],
+             "inventory":[{"item":"FUEL1","amount":57,"container":"Chest1Inventory"}]})
+        context=memory.context("default","What do you know about my save?")
+        self.assertIn("Units: 123456",context)
+        self.assertIn("Nanites: 789",context)
+        self.assertIn("Quicksilver: 42",context)
+        self.assertNotIn("inventory_container_counts",context)
+        data=json.loads(context.splitlines()[-1].split("] ",1)[1])
+        self.assertEqual(data["inventory_examples"],[])
+        self.assertEqual(data["inventory_matches"],[])
+
+    def test_requested_container_breakdown_still_receives_counts(self):
+        memory.store_snapshot("default","containers","fixture.json",memory.now(),
+            {"bases":[],"inventory":[{"item":"FUEL1","amount":3,"container":"Chest1Inventory"}]})
+        context=memory.context("default","Show a breakdown of my inventory containers")
+        data=json.loads(context.splitlines()[-1].split("] ",1)[1])
+        self.assertEqual(data["inventory_container_counts"],{"Chest1Inventory":1})
+
+    def test_captured_snapshot_does_not_mix_with_later_watcher_update(self):
+        memory.store_snapshot("default","first","fixture.json",memory.now(),
+            {"Units":123456,"bases":[],"inventory":[]})
+        captured=memory.latest_snapshot("default")
+        memory.store_snapshot("default","second","fixture.json",memory.now(),
+            {"Units":654321,"bases":[],"inventory":[]})
+        context=memory.context("default","What is my save?",snapshot=captured)
+        self.assertIn("Units: 123456",context)
+        self.assertNotIn("654321",context)
+        self.assertIn("No save snapshot",memory.context("default","Hi",snapshot=None))
+
     def test_google_quota_explains_no_retry(self):
         error=urllib.error.HTTPError("https://example",429,"quota",{},io.BytesIO(b"quota"))
         with patch("companion.providers.urllib.request.urlopen",side_effect=error) as request:

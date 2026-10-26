@@ -62,6 +62,7 @@ Abri uma seção recolhida para ajustar o necessário sem transformar a interfac
 | Saída máxima | 512 tokens | Limite da geração, incluindo raciocínio quando houver. |
 | Temperatura | 0,7 | Padrão geral; confira a recomendação do modelo. |
 | Threads CPU | 0 | Automático; um valor positivo solicita esse número. |
+| Camadas GPU | -1 | Automático; 0 solicita só CPU; um valor positivo solicita esse número de camadas na GPU. |
 | Manter carregado | 5m | 0s libera após responder; -1 mantém na memória. |
 | Tempo de espera | 180 segundos | Espera de conexão/leitura, ajustável de 15 a 900. |
 | Raciocínio interno | Desligado | Depende do suporte do modelo. |
@@ -69,6 +70,8 @@ Abri uma seção recolhida para ajustar o necessário sem transformar a interfac
 **Usar padrões do modelo** consulta os metadados locais. Usa o contexto configurado quando informado, sem adotar automaticamente o máximo anunciado. O que não for informado mantém o valor atual.
 
 Para o Liquid 1.2B Instruct, posso usar **32768 de contexto, temperatura 0,1 e raciocínio desligado**. Ter 32k dá espaço para receber informações; a precisão continua dependendo de como o modelo consegue usá-las.
+
+Erro CUDA de falta de memória indica que o modelo não conseguiu carregar na GPU. Dá para ajustar as camadas por modelo sem reduzir o contexto. Só CPU usa RAM e pode ficar lento ou ainda falhar se faltarem recursos.
 
 **Liberar modelo da memória** pede ao Ollama para descarregar o selecionado. A próxima resposta precisa carregá-lo novamente. O botão fica bloqueado durante uma resposta ativa.
 
@@ -124,7 +127,9 @@ Vincule o arquivo ao personagem certo. O watcher verifica mudanças a cada quatr
 
 Nos testes, o modelo pequeno recebeu valores corretos e mesmo assim misturou moedas com contagens de inventário. Também inventou a função de bases apenas pelo nome.
 
-Por isso, pedidos explícitos de resumo e estatísticas usam uma **resposta direta do leitor de save**. O Python formata os valores do snapshot daquele personagem, sem pedir à IA para reescrever os números. A fonte aparece no identificador da resposta. Sugestões incluídas nessa rota são identificadas como sugestões do aplicativo, não missões salvas.
+A **conversa sempre vai para a IA escolhida**, inclusive quando pergunto sobre meu save. O aplicativo fornece o contexto verificado e mostra uma referência recolhida de **Fatos verificados do save** junto da resposta. Posso abrir e comparar a interpretação da IA com os valores exatos. Essa referência não substitui a conversa.
+
+O contexto e a referência usam o mesmo snapshot capturado. Moedas e totais ficam claros para o modelo; contagens de compartimentos e coordenadas entram quando são relevantes à pergunta. O relatório sem IA continua disponível apenas para clientes que pedem explicitamente `response_mode: "facts"`.
 
 A conversa geral continua usando o modelo escolhido. Ele pode interpretar errado e inventar informações. Instruções ajudam, mas não garantem precisão. Um nome de base não comprova que ali exista fábrica, pesquisa, recurso ou missão.
 
@@ -159,7 +164,7 @@ O OCR tenta Windows OCR e depois RapidOCR na CPU. Revise nomes e números antes 
 1. O navegador envia texto ou uma gravação curta ao Flask em `127.0.0.1:8765`.
 2. Whisper transcreve o áudio localmente; texto digitado pula essa etapa.
 3. SQLite carrega os dados do personagem. O leitor mantém snapshots históricos do save.
-4. Pedidos reconhecidos de estatísticas usam a resposta direta; conversa geral vai ao Ollama ou Gemini autorizado.
+4. A conversa vai ao Ollama ou Gemini autorizado com contexto verificado; uma referência separada mostra os fatos do save. Só um pedido explícito do modo facts pula a IA.
 5. A resposta chega por NDJSON, com texto na tela e frases encaminhadas à voz do navegador.
 6. O serviço Windows cuida de atalhos, gravação limitada e HUD Tk.
 
@@ -174,6 +179,8 @@ O padrão do launcher é **.runtime/userdata**. `NMS_COMPANION_RUNTIME` altera o
 Banco, configurações, modelos, capturas, áudio, logs, dumps e credenciais ficam fora dos commits. Os logs locais são **logs/orion.log**, com rotação, e **fault.log**, para falhas de baixo nível quando disponível. Os logs do aplicativo não registram deliberadamente prompts ou chaves.
 
 Ollama/Gemini recebem o texto selecionado. Áudio e OCR são locais; as gravações e imagens brutas não vão ao Gemini. O Google recebe o contexto de texto quando a nuvem é autorizada.
+
+Inicie o Ollama antes de conversar. Se usar Docker, abra o Docker Desktop e inicie o contêiner existente do Ollama. Ter só o Docker aberto não garante que o Ollama esteja escutando. Conexão recusada indica que nenhum serviço aceitou aquele endereço/porta; interrupções durante o carregamento têm uma mensagem diferente.
 
 Timeout não prova que o Ollama esteja desligado. Carregamento e prompts longos podem demorar. Confira serviço, modelo e tempo de espera antes de repetir.
 

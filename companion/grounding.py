@@ -61,9 +61,30 @@ def _count(payload, key):
     return len(values) if isinstance(values, list) else None
 
 
-def save_report(text, snapshot, ui_locale="en"):
+def verified_save(snapshot):
+    """Machine-read reference data, kept separate from generated prose."""
+    if not snapshot:
+        return None
+    import math
+    payload = snapshot.get("payload") or {}
+    def value(key):
+        number = payload.get(key)
+        if isinstance(number, bool) or not isinstance(number, (int, float)):
+            return None
+        return number if not isinstance(number, float) or math.isfinite(number) else None
+    return {
+        "currencies": {"Units": value("Units"), "Nanites": value("Nanites"), "Quicksilver": value("Specials")},
+        "base_count": _count(payload, "bases"),
+        "inventory_count": _count(payload, "inventory"),
+        "observed_at": str(snapshot.get("observed_at") or ""),
+        "partial": True,
+        "warning": bool(payload.get("warning")),
+    }
+
+
+def save_report(text, snapshot, ui_locale="en", *, force=False):
     """Return None for ordinary chat, otherwise a fully deterministic report."""
-    if not is_report_request(text):
+    if not force and not is_report_request(text):
         return None
     locale = report_locale(text, ui_locale)
     if not snapshot:

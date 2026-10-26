@@ -51,3 +51,9 @@ Objetivos, lore e narrativa do diário são registros próprios do Orion. A impo
 503 indica indisponibilidade temporária do serviço Gemini; não é um diagnóstico de chave inválida. Não há repetição automática ilimitada. Aguarde ou escolha um modelo listado para sua chave.
 
 A assinatura do ChatGPT e a API da OpenAI têm cobrança separada. Orion utiliza Ollama ou Gemini e não usa os créditos de uma assinatura ChatGPT.
+
+## AI conversation and GPU-memory failures
+
+Normal chat always uses the chosen AI, even for save questions. The Verified save facts card is a separate reference; it does not replace the model response. Start Ollama or the existing Docker container before chatting. Refused connections, interrupted runners and GPU-memory errors are reported separately.
+
+A real lfm2.5:8b request at 32768 context failed with CUDA out of memory on the tested GPU. GPU layers can be set per model: -1 automatic, 0 CPU, a positive value for partial offload. CPU mode is a setting to test, not a guarantee; the observed CPU-only attempt disconnected during loading. A smaller model may be necessary. The app does not silently reduce context or switch models.

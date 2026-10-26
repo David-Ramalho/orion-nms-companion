@@ -180,5 +180,51 @@ class ProviderTests(unittest.TestCase):
         self.assertIn('embeddings', str(caught.exception))
         self.assertNotIn('offline', str(caught.exception))
 
+    def test_refused_connection_identifies_stopped_service(self):
+        import urllib.error
+        with patch('companion.providers._request',side_effect=urllib.error.URLError(ConnectionRefusedError(10061,"refused"))):
+            with self.assertRaises(ProviderError) as caught:
+                list(ollama_stream({'ollama_model':'fixture'},[]))
+        self.assertIn('recusada',str(caught.exception))
+        self.assertIn('Docker Desktop',str(caught.exception))
+
+    def test_runner_disconnect_is_not_reported_as_offline(self):
+        import http.client
+        with patch('companion.providers._request',side_effect=http.client.RemoteDisconnected('closed')):
+            with self.assertRaises(ProviderError) as caught:
+                list(ollama_stream({'ollama_model':'fixture'},[]))
+        self.assertIn('interrompida',str(caught.exception))
+        self.assertNotIn('recusada',str(caught.exception))
+
+    def test_blocked_connection_explains_network_access(self):
+        with patch('companion.providers._request',side_effect=PermissionError(13,'denied')):
+            with self.assertRaises(ProviderError) as caught:
+                list(ollama_stream({'ollama_model':'fixture'},[]))
+        self.assertIn('bloqueado',str(caught.exception))
+
+    def test_cpu_mode_is_explicit_and_keeps_requested_context(self):
+        response=Response([b'{"message":{"content":"Hello"}}'])
+        with patch('companion.providers._request',return_value=response) as request:
+            list(ollama_stream({'ollama_model':'large','ollama_num_gpu':0,'ollama_num_ctx':32768},[]))
+        self.assertEqual(request.call_args.args[1]['options']['num_gpu'],0)
+        self.assertEqual(request.call_args.args[1]['options']['num_ctx'],32768)
+
+    def test_automatic_gpu_allocation_does_not_override_ollama(self):
+        response=Response([b'{"message":{"content":"Hello"}}'])
+        with patch('companion.providers._request',return_value=response) as request:
+            list(ollama_stream({'ollama_model':'fixture','ollama_num_gpu':-1},[]))
+        self.assertNotIn('num_gpu',request.call_args.args[1]['options'])
+
+    def test_gpu_oom_is_not_misreported_as_connection_failure(self):
+        import io,urllib.error
+        error=urllib.error.HTTPError('http://localhost/api/chat',500,'Error',{},
+            io.BytesIO(b'{"error":"llama-server process terminated: cudaMalloc failed: out of memory"}'))
+        with patch('companion.providers._request',side_effect=error):
+            with self.assertRaises(ProviderError) as caught:
+                list(ollama_stream({'ollama_model':'large'},[]))
+        self.assertIn('GPU',str(caught.exception))
+        self.assertIn('CPU',str(caught.exception))
+        self.assertNotIn('conectar',str(caught.exception))
+
 if __name__ == '__main__':
     unittest.main()

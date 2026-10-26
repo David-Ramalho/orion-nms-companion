@@ -19,6 +19,7 @@ DEFAULTS = {
     "ollama_num_predict": 512,
     "ollama_temperature": 0.7,
     "ollama_num_thread": 0,
+    "ollama_num_gpu": -1,
     "ollama_keep_alive": "5m",
     "ollama_think": False,
     "provider_timeout": 180,
@@ -61,7 +62,7 @@ def load_config() -> dict:
 # recommendation to allocate that whole context window.
 OLLAMA_FIELDS = (
     "ollama_num_ctx", "ollama_num_predict", "ollama_temperature",
-    "ollama_num_thread", "ollama_keep_alive", "ollama_think", "provider_timeout",
+    "ollama_num_thread", "ollama_num_gpu", "ollama_keep_alive", "ollama_think", "provider_timeout",
 )
 
 
@@ -82,6 +83,7 @@ def validate_ollama_settings(values):
         "ollama_num_predict": (1, 65536, True),
         "ollama_temperature": (0, 2, False),
         "ollama_num_thread": (0, 128, True),
+        "ollama_num_gpu": (-1, 256, True),
         "provider_timeout": (15, 900, True),
     }
     for key, limit in limits.items():

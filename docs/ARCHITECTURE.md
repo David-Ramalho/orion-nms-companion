@@ -39,6 +39,6 @@ Configuração avançada e metadados do modelo permitem controlar contexto/gera�
 
 ## Exact reports and interface language
 
-Explicit saved-data reporting requests use companion/grounding.py and stream app-formatted values with the Save reader source. This route does not probe providers or load credentials. General chat retains the selected model, cancellation and persistence path. Advice-only requests remain model-driven.
+Normal chat, including save questions, uses the selected provider. The start/error event can include verified_save metadata for a separate reference card. One captured snapshot supplies both the card and model context, avoiding watcher-update races. Only explicit response_mode: facts uses an app-formatted Save reader report without provider calls. Cancellation, profile isolation and history persistence apply to both paths.
 
 The browser i18n module translates registered UI labels and common statuses. The EN/PT preference stays in localStorage, separate from the STT setting. Chat requests carry ui_locale for app-response fallback; the message language takes priority when detected. User/model text is not translated.

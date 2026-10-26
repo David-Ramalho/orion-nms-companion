@@ -16,16 +16,20 @@ These checks establish a failure in the tested model/setup. They do not prove al
 
 ## Application change
 
-Explicit save overviews, balances and counts now use a deterministic report assembled from the selected profile's snapshot. The response is labeled **Save reader**, with no claimed Ollama/Gemini generation.
+Normal save questions go to the selected AI. The app supplies a compact, authoritative fact list and shows a separate Verified save facts reference card. Model output is not replaced by a fixed report. The card remains available if a provider request fails, so local data availability and AI connectivity can be distinguished.
 
-It works when the provider is offline. Missing fields are marked unknown. Readable inventory counts remain explicitly partial. Optional activities in this route are conservative app suggestions and do not assert facilities, production or missions.
+Container counts, item examples and coordinates are retrieved when relevant rather than competing with currency values in every greeting or overview. The card and prompt share one captured snapshot.
 
-General strategy and conversation stay with the user's chosen model. This includes questions about spending resources. They remain subject to model errors; the deterministic route is intentionally limited to recognizable reporting requests.
+A deterministic report is available only through explicit response_mode: facts. It is labeled Save reader and can work offline. It does not claim to be an AI response.
 
 The general prompt clarifies that local Ori has no inherited ChatGPT memory and should ask about unknown identities. This is a behavioral instruction, not an identity-validation guarantee. The user should record personal information intentionally in the local profile.
 
 ## Useful comparison
 
-For factual tests, use the same linked save and a new conversation. Ask for balances/counts, then compare with the snapshot. Check the source badge: a direct report tests the reader, while normal model conversation tests generation. Keep suggestions separate from saved facts.
+For factual tests, use the same linked save and a new conversation. Ask for balances/counts, then compare with the snapshot. Check the source badge: the reference card tests stored data, while normal model conversation tests generation. Keep suggestions separate from saved facts.
 
 A larger context window increases input capacity. It does not guarantee correct extraction or reasoning.
+
+## Separate resource failure
+
+The later lfm2.5:8b request reached Ollama but failed loading GPU buffers with a CUDA out-of-memory error. That is not a save-parser error or evidence that the model misunderstood a prompt: generation had not begun. The CPU-only retry disconnected, so it did not validate that fallback. Application flow tests and real model/runtime capacity tests are reported separately.

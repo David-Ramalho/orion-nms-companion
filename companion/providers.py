@@ -107,13 +107,17 @@ def _ollama_error(exc, timeout):
     if isinstance(exc, urllib.error.HTTPError):
         if exc.code == 404:
             return "Modelo Ollama nao encontrado. Atualize a lista e escolha um modelo instalado."
-        if exc.code == 503:
-            return "Ollama respondeu 503: servidor ocupado ou sem recursos para carregar o modelo. Confira os logs do Ollama."
         try:
             detail = json.loads(exc.read(1000)).get("error", "")
         except (ValueError, OSError):
             detail = ""
         lower_detail = str(detail).lower()
+        if ("out of memory" in lower_detail or "unable to allocate" in lower_detail) and any(word in lower_detail for word in ("cuda", "gpu", "vram")):
+            return "Memoria da GPU insuficiente para carregar este modelo. Nos parametros, use GPU layers 0 para CPU, menos camadas GPU ou um modelo menor. O contexto nao foi alterado."
+        if "requires more system memory" in lower_detail or "insufficient system memory" in lower_detail:
+            return "Memoria RAM insuficiente para carregar este modelo. Libere memoria ou escolha um modelo menor."
+        if exc.code == 503:
+            return "Ollama respondeu 503: servidor ocupado ou sem recursos para carregar o modelo. Confira os logs do Ollama."
         if any(message in lower_detail for message in ("does not support chat", "does not support generate", "does not support completion")):
             return "Este modelo Ollama nao oferece geracao de conversa. Modelos apenas de embeddings ou ranking nao podem responder ao chat; escolha um modelo de texto."
         if "does not support thinking" in lower_detail:
@@ -124,6 +128,14 @@ def _ollama_error(exc, timeout):
         return (f"Ollama nao enviou dados por {timeout}s. O servidor pode estar carregando o modelo "
                 "ou processando o contexto; isso nao confirma que esta offline. "
                 "Aumente o tempo de espera nos parametros, confira o modelo carregado e os logs do Ollama.")
+    code = getattr(reason, "winerror", None) or getattr(reason, "errno", None)
+    if isinstance(reason, ConnectionRefusedError) or code in (10061, 111, 61):
+        return "A conexao com o Ollama foi recusada. Inicie o Ollama ou o Docker Desktop e o conteiner do Ollama; depois confira a URL."
+    if isinstance(reason, PermissionError) or code in (10013, 13):
+        return "O acesso ao Ollama foi bloqueado pelo Windows ou pela rede. Confira as permissoes de rede e o endereco configurado."
+    if isinstance(reason, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError,
+                           http.client.RemoteDisconnected, http.client.IncompleteRead, http.client.BadStatusLine)):
+        return "A conexao com o Ollama foi interrompida durante o carregamento ou a resposta. Confira os logs do Ollama e os recursos disponiveis."
     return "Nao foi possivel conectar ao Ollama. Confira se o servidor esta iniciado e a URL em Configuracoes."
 
 
@@ -222,6 +234,9 @@ def ollama_stream(config, messages, stop_event=None):
         options["num_ctx"] = context
     if threads:
         options["num_thread"] = threads
+    gpu_layers = _limit(config, "ollama_num_gpu", -1, -1, 256)
+    if gpu_layers >= 0:
+        options["num_gpu"] = gpu_layers
     try:
         response = _request(config.get("ollama_url", "http://127.0.0.1:11434").rstrip("/") + "/api/chat",
                             {"model": model, "messages": messages, "stream": True,

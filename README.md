@@ -62,6 +62,7 @@ Open **Parameters for this model**. Settings are kept separately for each exact 
 | Maximum output | 512 | Generation budget, including reasoning for models that produce it. |
 | Temperature | 0.7 | General default; use the model's own recommendation when available. |
 | CPU threads | 0 | Automatic; a positive value requests that thread count. |
+| GPU layers | -1 | Automatic placement; 0 requests CPU only; a positive value requests that many GPU layers. |
 | Keep loaded | 5m | 0s unloads after the answer; -1 keeps the model loaded. |
 | Timeout | 180 seconds | Connection/read wait; adjustable from 15 to 900 seconds. |
 | Thinking | Off | Sends the provider's thinking option when supported. |
@@ -69,6 +70,8 @@ Open **Parameters for this model**. Settings are kept separately for each exact 
 **Use model defaults** reads local model metadata. It uses the configured context default when reported, rather than allocating the advertised maximum. Unreported parameters keep their current values.
 
 For Liquid 1.2B Instruct, I use the non-thinking model and can set **32768 context / temperature 0.1 / thinking off**. A 32k window provides room for context; accurate use of that context still depends on the model.
+
+A CUDA out-of-memory error means the selected model failed to load on the GPU. GPU layers can be adjusted per model while keeping the requested context unchanged. CPU-only inference uses system RAM and may be slow or still fail if resources are insufficient.
 
 **Release model memory** asks Ollama to unload the selected model. The next answer has to load it again. This action is blocked during an active response.
 
@@ -124,7 +127,9 @@ Link a save to the right profile. The watcher checks linked files every four sec
 
 I found a practical problem during testing: a small model could receive the correct data and still confuse currency balances with inventory counts or invent a base's purpose from its name.
 
-Explicit save summaries/statistics now use a **direct save-reader response**. Python formats those values from the selected profile's snapshot, so the LLM doesn't rewrite the numbers. The source badge identifies the save reader. If that route includes activity suggestions, they are labeled app suggestions, not saved missions.
+**Conversation always goes to the selected AI**, including questions about my save. The app supplies verified save context and shows a separate, collapsed **Verified save facts** reference beneath the reply. I can open it to compare the model's interpretation with the exact snapshot values. The card isn't an AI answer and doesn't replace conversation.
+
+The reference and the AI context use the same captured snapshot. Currency balances and totals are presented clearly to the model; container counts and coordinates are included when relevant to the question. A standalone, non-AI report remains available only for clients that explicitly send `response_mode: "facts"`.
 
 General conversation still uses the selected LLM. It can misunderstand, hallucinate, or invent details. Prompt instructions reduce that risk but don't guarantee correctness. A base name alone doesn't prove there is a factory, research facility, resource deposit or mission there.
 
@@ -159,7 +164,7 @@ OCR tries Windows OCR, then RapidOCR on CPU. Review names and numbers before con
 1. The browser sends typed text or a short microphone recording to Flask on `127.0.0.1:8765`.
 2. Whisper transcribes audio locally. Typed messages skip this step.
 3. SQLite supplies data for the selected profile. The read-only save adapter maintains historical snapshots.
-4. Recognized save-stat requests use the deterministic reader; general chat goes to Ollama or consented Gemini.
+4. Normal chat goes to Ollama or consented Gemini with verified context; a separate reference card shows exact save facts. Only an explicit facts-mode request skips AI.
 5. Responses use NDJSON streaming. The browser displays text and queues completed sentences for speech.
 6. A native Windows service handles global shortcuts, bounded recording and the optional Tk subtitle HUD.
 
@@ -183,6 +188,8 @@ The launcher normally keeps private data in **.runtime/userdata**. `NMS_COMPANIO
 SQLite, settings, models, captures, audio, logs, dumps and credentials are excluded from source commits. Logs under **logs/orion.log** rotate; **fault.log** records low-level failures when available. App logs deliberately omit prompts and keys.
 
 Ollama/Gemini receive the selected text context. Whisper and OCR run locally; raw audio and screenshots aren't sent to Gemini. Cloud processing still sends the selected text to Google.
+
+Start Ollama before chatting. With Docker, start Docker Desktop and the existing Ollama container; an online Docker engine alone doesn't mean Ollama is listening. A refused connection means no service accepted that address/port. A connection closed during model loading is reported separately.
 
 A connection timeout doesn't prove Ollama is offline. Cold loading and long prompts can take time. Check the server, model and timeout before retrying.
 

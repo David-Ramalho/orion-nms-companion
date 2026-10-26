@@ -9,8 +9,8 @@ function apiFetch(url, options) {
 let micHeld = false, micOpening = false, micEpoch = 0, recordingLimit = null;
 let activeController = null, recorder = null, holdTimer = null, speaking = false;
 let speechBuffer = '', currentBubble = null, lastReplyEngine = '', turnEpoch = 0;
-const parameterFields = {ollama_num_ctx:'contextSize',ollama_num_predict:'outputTokens',ollama_temperature:'temperature',ollama_num_thread:'threads',ollama_keep_alive:'keepAlive',provider_timeout:'providerTimeout',ollama_think:'modelThink'};
-const parameterDefaults = {ollama_num_ctx:32768,ollama_num_predict:512,ollama_temperature:0.7,ollama_num_thread:0,ollama_keep_alive:'5m',provider_timeout:180,ollama_think:false};
+const parameterFields = {ollama_num_ctx:'contextSize',ollama_num_predict:'outputTokens',ollama_temperature:'temperature',ollama_num_thread:'threads',ollama_num_gpu:'gpuLayers',ollama_keep_alive:'keepAlive',provider_timeout:'providerTimeout',ollama_think:'modelThink'};
+const parameterDefaults = {ollama_num_ctx:32768,ollama_num_predict:512,ollama_temperature:0.7,ollama_num_thread:0,ollama_num_gpu:-1,ollama_keep_alive:'5m',provider_timeout:180,ollama_think:false};
 function readParameters() {
   const result = {};
   for (const [key,id] of Object.entries(parameterFields)) result[key] = key==='ollama_think' ? $(id).checked : key==='ollama_keep_alive' ? $(id).value.trim() : Number($(id).value);
@@ -40,6 +40,25 @@ function addMessage(role,text='') {
   const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;
   row.append(who,bubble);$('messages').append(row);$('messages').scrollTop=$('messages').scrollHeight;
   return bubble;
+}
+function renderVerifiedSave(details,data) {
+  const wasOpen=details.open;details.replaceChildren();details._verifiedSave=data;
+  const summary=document.createElement('summary');summary.textContent=t("Dados verificados do save");details.append(summary);
+  const note=document.createElement('p');note.textContent=t("Referencia do aplicativo, separada da resposta da IA.");details.append(note);
+  const list=document.createElement('dl');
+  const rows=[['Units',data.currencies?.Units],['Nanites',data.currencies?.Nanites],['Quicksilver',data.currencies?.Quicksilver],[t("Bases lidas"),data.base_count],[t("Entradas de inventario reconhecidas"),data.inventory_count]];
+  for(const [label,value] of rows){const term=document.createElement('dt'),definition=document.createElement('dd');term.textContent=label;definition.textContent=typeof value==='number'&&Number.isFinite(value)?value.toLocaleString(uiDateLocale()):t("Desconhecido");list.append(term,definition);}
+  details.append(list);
+  if(data.observed_at){const stamp=document.createElement('p');const date=new Date(data.observed_at);stamp.textContent=t("Ultimo salvamento")+': '+(Number.isNaN(date.getTime())?data.observed_at:date.toLocaleString(uiDateLocale()));details.append(stamp);}
+  const limits=document.createElement('p');limits.textContent=t("Snapshot historico; o inventario pode estar incompleto.");details.append(limits);
+  if(data.warning){const warning=document.createElement('p');warning.textContent=t("O leitor registrou um aviso. Confira os detalhes do save.");details.append(warning);}
+  details.open=wasOpen;
+}
+function attachVerifiedSave(bubble,data) {
+  if(!data)return;
+  let details=bubble.parentElement.querySelector('.verified-save');
+  if(!details){details=document.createElement('details');details.className='verified-save';bubble.before(details);}
+  renderVerifiedSave(details,data);
 }
 async function updateStatus() {
   try {
@@ -110,12 +129,13 @@ async function sendMessage(text) {
       if(!line||epoch!==turnEpoch)return;
       const item=JSON.parse(line);
       if(item.type==='start'){
+        attachVerifiedSave(bubble,item.verified_save);
         lastReplyEngine=t(item.provider)+(item.model?' · '+item.model:'');const badge=document.createElement('small');badge.className='engine-badge';badge.textContent=lastReplyEngine;bubble.parentElement.querySelector('.who').append(badge);
         $('hint').textContent=t("Aguardando ")+lastReplyEngine+t(" · o primeiro carregamento pode demorar");
       }
       if(item.type==='delta'){bubble.textContent+=item.text;queueSpeech(item.text);window.updateSubtitle?.(bubble.textContent);$('messages').scrollTop=$('messages').scrollHeight;$('hint').textContent=t("Respondendo: ")+lastReplyEngine;}
       if(item.type==='done'){bubble.classList.remove('streaming');queueSpeech('',true);window.onReplyDone?.(item.text);$('hint').textContent=t("Última resposta: ")+lastReplyEngine+t(" · pronto");}
-      if(item.type==='error'){failed=true;window.onReplyFailed?.();if('speechSynthesis' in window)speechSynthesis.cancel();speechQueued=0;speechBuffer='';bubble.classList.remove('streaming');bubble.textContent=uiText(item.message);$('hint').textContent=t("Confira conexão, modelo e tempo de espera em Sistemas de IA.");}
+      if(item.type==='error'){attachVerifiedSave(bubble,item.verified_save);failed=true;window.onReplyFailed?.();if('speechSynthesis' in window)speechSynthesis.cancel();speechQueued=0;speechBuffer='';bubble.classList.remove('streaming');bubble.textContent=uiText(item.message);$('hint').textContent=t("Confira conexão, modelo e tempo de espera em Sistemas de IA.");}
       if(item.type==='cancelled'){bubble.classList.remove('streaming');$('hint').textContent=t("Resposta interrompida.");}
     };
     while(true){const {value,done}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});const lines=pending.split('\n');pending=lines.pop();for(const line of lines)consume(line);}
@@ -185,7 +205,7 @@ $('modelDefaults').onclick=async()=>{
     // Advertised maximum is informational. Use the Modelfile default, or let Ollama choose.
     const defaults=details.model_defaults||{};
     $('contextSize').value=Number(details.default_context_length ?? defaults.num_ctx)||0;
-    for(const [key,id] of Object.entries({num_predict:'outputTokens',temperature:'temperature',num_thread:'threads'})){
+    for(const [key,id] of Object.entries({num_predict:'outputTokens',temperature:'temperature',num_thread:'threads',num_gpu:'gpuLayers'})){
       if(defaults[key]!==undefined&&Number.isFinite(Number(defaults[key])))$(id).value=Number(defaults[key]);
     }
     cacheParameters();markSettingsDirty();
@@ -223,3 +243,5 @@ for(const id of ['provider','geminiModel','cloudConsent','cloudFallback',...Obje
 loadSettings();setInterval(updateStatus,30000);
 
 document.addEventListener("orion:localechange",()=>{refreshVoices();updateStatus();loadFacts(false).catch(()=>{});});
+
+document.addEventListener("orion:localechange",()=>{for(const details of document.querySelectorAll(".verified-save"))renderVerifiedSave(details,details._verifiedSave);});

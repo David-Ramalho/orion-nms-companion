@@ -29,4 +29,4 @@ Pacotes, configurações, banco, capturas e modelos ficam fora dos commits. Ante
 
 ## Interface preference and direct reports
 
-The EN/PT web-interface preference is stored in browser localStorage. It does not send user text to a translation service. A direct Save reader report is formatted locally without a provider request. General conversation still sends selected context to the configured provider. Local Ori does not import ChatGPT account memory or unrelated personal records.
+The EN/PT web-interface preference is stored in browser localStorage. It does not send user text to a translation service. A direct Save reader report requires an explicit facts-mode request and is formatted locally. Default chat sends selected context to the configured provider and displays a separate local reference of verified save facts. Local Ori does not import ChatGPT account memory or unrelated personal records.

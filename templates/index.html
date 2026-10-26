@@ -27,10 +27,12 @@
             <label>Contexto · tokens<input id="contextSize" type="number" min="0" max="1048576" step="1" value="32768"></label>
             <label>Saída máxima · tokens<input id="outputTokens" type="number" min="1" max="65536" step="1" value="512"></label>
             <label>Temperatura<input id="temperature" type="number" min="0" max="2" step="0.05" value="0.7"></label>
+            <label>Camadas GPU (-1 automatico, 0 CPU)<input id="gpuLayers" type="number" min="-1" max="256" step="1" value="-1"></label>
             <label>Threads da CPU<input id="threads" type="number" min="0" max="128" step="1" value="0"></label>
             <label>Manter carregado<input id="keepAlive" value="5m" placeholder="5m, 30m, 0s ou -1"></label>
             <label>Espera máxima · segundos<input id="providerTimeout" type="number" min="15" max="900" step="1" value="180"></label>
           </div>
+          <p class="note">GPU 0 usa somente a CPU; valores positivos solicitam camadas na GPU. A velocidade depende do modelo e do hardware.</p>
           <label class="check"><input type="checkbox" id="modelThink"> Raciocínio interno, se o modelo suportar</label>
           <p class="note">Contexto 0 e threads 0 usam os padrões do Ollama. Manter carregado: 0s libera após a resposta; -1 mantém na memória. A espera inclui o carregamento inicial. Contexto disponível e consumo dependem do modelo e do hardware.</p>
           <label>Endereço do Ollama<input id="ollamaUrl" value="http://127.0.0.1:11434" spellcheck="false"></label>

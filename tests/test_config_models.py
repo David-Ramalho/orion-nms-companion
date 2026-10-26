@@ -45,5 +45,15 @@ class ModelConfigTests(unittest.TestCase):
                 config.save_config(values)
 
 
+    def test_gpu_offload_is_independent_per_model_and_validated(self):
+        current=config.save_config({"ollama_model_settings":{
+            "large":{"ollama_num_gpu":0,"ollama_num_ctx":32768},
+            "small":{"ollama_num_gpu":12}}})
+        self.assertEqual(config.effective_ollama_config(current,"large")["ollama_num_gpu"],0)
+        self.assertEqual(config.effective_ollama_config(current,"small")["ollama_num_gpu"],12)
+        self.assertEqual(config.effective_ollama_config(current,"other")["ollama_num_gpu"],-1)
+        with self.assertRaises(ValueError):
+            config.save_config({"ollama_num_gpu":-2})
+
 if __name__ == "__main__":
     unittest.main()

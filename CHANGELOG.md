@@ -1,5 +1,16 @@
 # Mudanças
 
+## AI conversation and connection recovery
+
+- All normal chat, including save questions, uses the chosen AI again.
+- Exact save facts appear as a separate collapsed reference, including on provider failures.
+- Fixed reader reports require explicit facts mode.
+- The prompt and reference share one snapshot; ordinary chat omits irrelevant numerical details.
+- Connection errors distinguish a stopped service, a network block, a disconnected runner and GPU/RAM exhaustion.
+- Per-model GPU layers allow automatic placement, CPU-only and requested partial offload without changing context.
+- EN/PT reference labels and error translations preserve the existing language toggle.
+
+
 ## Grounded reports and EN/PT interface — 25 October 2026
 
 - Direct save reports preserve exact numbers even without Ollama/Gemini.
