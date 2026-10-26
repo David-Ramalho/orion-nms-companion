@@ -30,14 +30,21 @@ def active_profile():
 def journal():
     return jsonify(memory.entries(profile(),request.args.get("q","")))
 
+@api.get("/api/journal/categories")
+def journal_categories():
+    return jsonify(memory.categories(profile()))
+
 @api.post("/api/journal")
 def add_entry():
     p = profile()
     body = request.get_json()
+    requested_source = body.get("source")
     if body.get("kind")=="observation":
         body["source"] = "user-reviewed"
+    elif requested_source in ("conversation-message", "conversation-summary"):
+        body["source"] = "user-reviewed-chat"
     elif body.get("kind")=="summary":
-        body["source"] = "assistant-generated"
+        body["source"] = "user-reviewed-summary"
     else:
         body["source"] = "user"
     attachment = body.get("attachment","")
@@ -60,8 +67,9 @@ def delete_entry(ident):
 def briefing():
     p = profile()
     rows = memory.entries(p,limit=100)
+    reminders=sorted((x for x in rows if x.get("due_at") and x["status"]=="open"), key=lambda x:x["due_at"])
     return jsonify(goals=[x for x in rows if x["kind"]=="goal" and x["status"]=="open"],
-                   recent=rows[:8],snapshot=memory.latest_snapshot(p))
+                   reminders=reminders[:8],recent=rows[:8],snapshot=memory.latest_snapshot(p))
 
 @api.get("/api/journal/export")
 def export():

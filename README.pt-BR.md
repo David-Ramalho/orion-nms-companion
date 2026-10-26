@@ -75,6 +75,14 @@ Erro CUDA de falta de memória indica que o modelo não conseguiu carregar na GP
 
 **Liberar modelo da memória** pede ao Ollama para descarregar o selecionado. A próxima resposta precisa carregá-lo novamente. O botão fica bloqueado durante uma resposta ativa.
 
+### Modo com NMS aberto
+
+Quando jogo com No Man's Sky aberto, ativo **NMS aberto · modo econômico** em **Sistemas de IA** e salvo. Ori mantém meu Liquid 1.2B Instruct e meu perfil normal de 32k. O perfil NMS separado começa com contexto 4k, saída de até 192 tokens, duas threads CPU, somente CPU e descarregamento após responder. Todos os parâmetros continuam editáveis no modo; eles são salvos sem alterar o perfil normal.
+
+No modo, F8 e o microfone do navegador gravam até 20 segundos, e o Whisper `tiny` local usa uma thread CPU. Ori reutiliza os modelos que já estão no PC, sem baixar outro modelo de voz ou conversa. A GTX 1650 fica disponível para o NMS entre respostas. A troca é usar menos histórico em cada resposta e esperar o modelo carregar de novo antes de responder. Ao ativar o modo, Ori libera um modelo Ollama que já esteja carregado; também tenta liberá-lo ao iniciar nesse modo.
+
+As camadas GPU continuam editáveis no perfil NMS: `0` pede somente CPU, `-1` usa posicionamento automático e um número positivo pede essa quantidade de camadas na GPU. O posicionamento automático ainda pode ficar sem VRAM enquanto o NMS usa a GTX 1650. CPU evita essa disputa de VRAM, mas usa RAM e processador do sistema e pode ficar mais lenta ou disputar recursos com o jogo. Se CPU ficar lenta demais, posso testar poucas camadas GPU e aumentar aos poucos. Depois de uma resposta, `ollama ps` mostra a divisão real entre CPU e GPU; no Docker, posso usar `docker exec <container-do-ollama> ollama ps`. O perfil normal continua preservado.
+
 ### Gemini
 
 Salve a chave do Google AI Studio e permita o processamento na nuvem. Ela fica no **Gerenciador de Credenciais do Windows**; `GEMINI_API_KEY` é uma alternativa por variável de ambiente.
@@ -111,10 +119,12 @@ Whisper tiny/base multilíngue transcreve na CPU/int8. A voz de saída usa as op
 | --- | --- |
 | Units, Nanites, Quicksilver | Campos reconhecidos, quando presentes |
 | Bases | Nomes e dados disponíveis de posição/endereço |
+| Tempo de jogo salvo | TotalPlayTime salvo em segundos e formatado na referência do save |
 | Localização | Último endereço salvo |
 | Inventário | Entradas legíveis de inventários suportados do jogador, depósitos, cargueiro, naves e veículos |
 | Objetivos, lore e planos pessoais | Registros feitos no diário do Ori |
-| Livro completo de missões do NMS | Ainda não importado |
+| Descobertas de fauna e livro completo de missões | Não importados |
+| Temporizadores ativos das expedições de fragatas | Não importados automaticamente; registre o horário de retorno no diário |
 | Tela atual | Captura solicitada e OCR revisado |
 
 IDs de itens podem não estar traduzidos. IDs binários ilegíveis são omitidos com aviso. Uma seção vazia pode significar campo não suportado ou save não vinculado; não prova que o personagem não tem itens.
@@ -133,7 +143,7 @@ O contexto e a referência usam o mesmo snapshot capturado. Moedas e totais fica
 
 A conversa geral continua usando o modelo escolhido. Ele pode interpretar errado e inventar informações. Instruções ajudam, mas não garantem precisão. Um nome de base não comprova que ali exista fábrica, pesquisa, recurso ou missão.
 
-O modelo recebe contexto selecionado: diário, objetivos, histórico recente e resumo do save. Não recebe cada slot de inventário nem todas as conversas a cada pergunta. A busca de itens usa texto/IDs; ainda não existe um catálogo completo de nomes e receitas do jogo.
+A IA recebe registros selecionados do diário, objetivos, lembretes com prazo, conversa recente e resumo estruturado do save. Ela não recebe cada slot do inventário nem todas as conversas em cada pergunta. A busca de itens usa texto/IDs; ainda não existe um catálogo completo de nomes e receitas do jogo. O leitor atual extrai moedas, tempo jogado, último endereço salvo, entradas de inventário reconhecidas e nomes/posições de bases. Ele não importa descobertas de fauna, o livro de missões do jogo ou temporizadores ativos das expedições de fragatas.
 
 ## Memória, identidade e diário
 
@@ -149,9 +159,13 @@ O Ori local **não herda minha memória do ChatGPT**, e-mails, histórico do nav
 
 > Pelos meus objetivos registrados, o que podemos fazer agora? Separe fatos de ideias.
 
-Observações revisadas e resumos gerados também entram no diário, com a origem identificada. Lore continua sendo ficção do usuário.
+Posso guardar um trecho de qualquer mensagem com **Guardar trecho**, ou pedir que Ori prepare um resumo curto da sessão. Antes de gravar, Ori abre uma revisão editável. Posso escolher uma categoria existente ou digitar uma nova, como Projetos, Histórias, Fauna, Missões ou Expedições de fragatas. Também posso definir data e hora em um registro aberto, por exemplo, o retorno esperado de uma fragata. Ori inclui prazos abertos quando começo outra conversa no mesmo perfil e os mostra no diário; eles não são notificações do jogo nem pop-ups. Isso guarda só a nota escolhida, não uma cópia da conversa inteira.
 
-**Nova conversa** apaga as mensagens do personagem e cancela a resposta atual. Mantém memórias, diário e save vinculado. Entradas do diário podem ser excluídas separadamente e exportadas como JSON.
+A nota pertence ao personagem selecionado. **Nova conversa** limpa as mensagens daquele perfil, mas mantém diário, memórias fixas e save vinculado. A próxima conversa recebe registros relevantes do diário e objetivos com prazo que ainda estão abertos. Ori não carrega automaticamente todas as conversas antigas; guarde os detalhes que deseja levar adiante. Os lembretes de fragatas são manuais porque o leitor não interpreta os temporizadores ativos no save.
+
+Observações revisadas também entram no diário. Lore continua sendo ficção do usuário; resumos de sessão são gerados por Ori e só são gravados depois da revisão.
+
+As entradas do diário podem ser excluídas separadamente e exportadas como JSON.
 
 ## Captura e OCR
 

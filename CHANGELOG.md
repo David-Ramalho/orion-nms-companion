@@ -1,5 +1,15 @@
 # Mudanças
 
+## Local NMS profile, curated memories and timed journal — local build
+
+- Keep the Liquid 1.2B model and its normal 32k per-model settings.
+- Add an optional NMS mode with a separately saved profile: 4k context, 192 output tokens, CPU-only by default and unload-after-reply. All Ollama controls remain editable; GPU placement can be automatic, CPU-only or a positive layer count.
+- Cap F8 and browser-microphone recordings at 20 seconds and use one CPU thread for local tiny Whisper while the mode is active.
+- Release any currently loaded Ollama model when the mode is first enabled; report memory-allocation failures in plain language.
+- Add editable chat excerpts and reviewed session summaries with existing/new categories, including Projects, Stories and Frigate expeditions; add manual due dates that remain available to Ori in later conversations for the same character.
+- Document save-reader gaps: fauna, the in-game mission log and active frigate timers are not imported.
+- No additional model or speech-model download is required.
+
 ## AI conversation and connection recovery
 
 - All normal chat, including save questions, uses the chosen AI again.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 _stt_lock = threading.Lock()
 _stt_model = None
 _stt_model_name = None
+_stt_cpu_threads = None
 _stop = threading.Event()
 _turn_lock = threading.Lock()
 _turn_state = threading.RLock()
@@ -149,8 +151,13 @@ def credential():
     return jsonify({"ok": True})
 
 
+def _is_memory_allocation_error(exc):
+    message = str(exc).lower()
+    return isinstance(exc, MemoryError) or "mkl_malloc" in message or "out of memory" in message or ("allocat" in message and "memory" in message)
+
+
 def transcribe_bytes(raw, suffix=".webm"):
-    global _stt_model, _stt_model_name
+    global _stt_model, _stt_model_name, _stt_cpu_threads
     started = time.monotonic()
     if not _stt_lock.acquire(blocking=False):
         raise ValueError("Uma transcrição já está em andamento.")
@@ -158,19 +165,42 @@ def transcribe_bytes(raw, suffix=".webm"):
         cfg = load_config()
         model_name = cfg.get("stt_model","tiny")
         lang = cfg.get("stt_language","auto")
+        cpu_threads = 1 if cfg.get("nms_mode") else 2
         if lang!="en":
             model_name = model_name.replace(".en","")
-        if _stt_model is None or _stt_model_name != model_name:
+        if _stt_model is None or _stt_model_name != model_name or _stt_cpu_threads != cpu_threads:
+            # Drop the old worker before reloading with the game-mode thread limit.
+            _stt_model = None
+            _stt_model_name = None
+            _stt_cpu_threads = None
+            gc.collect()
             from faster_whisper import WhisperModel
-            _stt_model = WhisperModel(model_name,device="cpu",compute_type="int8",cpu_threads=2,download_root=str(DATA_DIR / "models"))
+            try:
+                model = WhisperModel(model_name,device="cpu",compute_type="int8",cpu_threads=cpu_threads,download_root=str(DATA_DIR / "models"))
+            except Exception as exc:
+                if _is_memory_allocation_error(exc):
+                    _log.warning("transcription_memory_failure stage=model_load")
+                    raise ValueError("Memória livre insuficiente para transcrever. No modo NMS Ori grava por menos tempo e usa uma thread. Feche outros aplicativos pesados ou digite a mensagem e tente novamente.") from exc
+                raise
+            _stt_model = model
             _stt_model_name = model_name
+            _stt_cpu_threads = cpu_threads
         DATA_DIR.mkdir(parents=True,exist_ok=True)
         with tempfile.NamedTemporaryFile(suffix=suffix,dir=DATA_DIR,delete=False) as file:
             path = Path(file.name)
             file.write(raw)
         try:
-            segments,_ = _stt_model.transcribe(str(path),language=None if lang=="auto" else lang,beam_size=1,vad_filter=True)
-            return " ".join(segment.text.strip() for segment in segments).strip()
+            try:
+                segments,_ = _stt_model.transcribe(str(path),language=None if lang=="auto" else lang,beam_size=1,vad_filter=True,condition_on_previous_text=False)
+                return " ".join(segment.text.strip() for segment in segments).strip()
+            except Exception as exc:
+                if _is_memory_allocation_error(exc):
+                    _log.warning("transcription_memory_failure stage=inference")
+                    _stt_model = None
+                    _stt_model_name = None
+                    _stt_cpu_threads = None
+                    raise ValueError("Memória livre insuficiente para transcrever. No modo NMS Ori grava por menos tempo e usa uma thread. Feche outros aplicativos pesados ou digite a mensagem e tente novamente.") from exc
+                raise
         finally:
             path.unlink(missing_ok=True)
     finally:

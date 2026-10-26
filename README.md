@@ -75,6 +75,14 @@ A CUDA out-of-memory error means the selected model failed to load on the GPU. G
 
 **Release model memory** asks Ollama to unload the selected model. The next answer has to load it again. This action is blocked during an active response.
 
+### NMS open mode
+
+When I play with No Man's Sky open, I turn on **NMS open · low-resource mode** under **AI systems** and save. Ori keeps my selected Liquid 1.2B Instruct model and my normal 32k profile. The separate NMS profile starts with 4k context, up to 192 output tokens, two CPU threads, CPU-only placement and unload-after-reply. Every model parameter remains editable while the mode is on; its settings save separately from my normal profile.
+
+F8 and browser-microphone recordings are capped at 20 seconds in this mode, and local Whisper `tiny` uses one CPU thread. It reuses the models already on my PC; it does not download another speech or chat model. The GTX 1650 remains available for NMS between replies. The tradeoff is less conversation history in each answer and a brief model reload before each reply. Enabling the mode releases an Ollama model that is already loaded; Ori also tries to release it when it starts in this mode.
+
+GPU layers are editable in the NMS profile: `0` asks Ollama to use CPU only, `-1` uses automatic placement, and a positive number requests that many model layers on the GPU. Automatic placement can still run out of VRAM while NMS is using the GTX 1650. CPU-only avoids that VRAM conflict, but uses system RAM and CPU, so it can be slower or compete with the game. If CPU-only is too slow, I can try a small positive layer count and raise it gradually. After a reply, `ollama ps` shows the actual CPU/GPU split; with Docker, I can run `docker exec <ollama-container> ollama ps`. The regular model profile stays unchanged.
+
 ### Gemini
 
 Save your Google AI Studio key and allow cloud processing. The key uses **Windows Credential Manager**, with `GEMINI_API_KEY` as an environment-variable alternative.
@@ -111,10 +119,12 @@ Speech input uses multilingual Whisper tiny/base on CPU/int8. Output uses availa
 | --- | --- |
 | Units, Nanites, Quicksilver | Recognized save fields, when present |
 | Bases | Names and available position/address data |
+| Saved play time | TotalPlayTime stored as seconds, formatted in the save reference |
 | Location | Last saved address, not a live position |
 | Inventory | Readable entries from supported player, storage, freighter, ship and vehicle inventories |
 | Personal goals, lore and plans | Entries you add to Ori's journal |
-| Complete in-game mission book | Not imported |
+| Fauna discoveries and the full in-game mission book | Not imported |
+| Active frigate expedition timers | Not imported automatically; record a return deadline in the journal |
 | What is on screen | A user-triggered capture, followed by OCR review |
 
 Item IDs may be untranslated. Some binary/unreadable IDs are omitted with a warning. An empty section can mean unsupported fields or no linked save; it isn't proof that the player owns nothing.
@@ -133,7 +143,7 @@ The reference and the AI context use the same captured snapshot. Currency balanc
 
 General conversation still uses the selected LLM. It can misunderstand, hallucinate, or invent details. Prompt instructions reduce that risk but don't guarantee correctness. A base name alone doesn't prove there is a factory, research facility, resource deposit or mission there.
 
-The context supplied to AI includes selected journal entries, open goals, recent conversation and a structured save summary. It doesn't include every inventory slot or every past conversation in each request. Exact item lookup currently uses text/ID matching, not a game-wide item-name or recipe database.
+The context supplied to AI includes selected journal entries, open goals, timed reminders, recent conversation and a structured save summary. It doesn't include every inventory slot or every past conversation in each request. Exact item lookup currently uses text/ID matching, not a game-wide item-name or recipe database. The reader currently extracts currencies, play time, last saved address, recognized inventory entries and base names/positions. It does not import fauna discoveries, the in-game mission log, or active frigate expedition timers.
 
 ## Memory, identity and the journal
 
@@ -149,9 +159,13 @@ The local Ori **doesn't inherit my ChatGPT memory**, emails, browser history or 
 
 > Based on my recorded goals, what could I work on next? Separate facts from ideas.
 
-The journal also supports reviewed observations and generated session summaries. Lore is fiction supplied by the user; generated summaries are labeled.
+I can save an individual chat excerpt with **Save excerpt**, or ask Ori to prepare a short session summary. Ori opens an editable review form before anything is added to the journal; I can choose an existing category or type a new one such as Projects, Stories, Fauna discoveries, Missions, or Frigate expeditions. I can add a due date/time to an open journal entry, including a frigate return reminder. Ori includes open deadlines when I start another chat in the same profile and shows them in the journal; they are not pop-up or in-game notifications. These are curated notes, not a transcript copy.
 
-**New conversation** clears messages for the current profile and cancels the active response. Saved memories, journal entries and linked-save data remain. You can delete journal entries separately or export them as JSON.
+A saved note belongs to the selected character profile. **New conversation** clears that profile's chat messages but keeps its journal, fixed memories and linked save. The next conversation gets relevant journal entries and open timed goals as context. Ori does not automatically see every old conversation; save the few details I want carried forward. Timed frigate reminders are manual because the save reader does not parse the active expedition timer fields.
+
+The journal also supports reviewed observations. Lore is fiction supplied by the user; session summaries are generated by Ori and saved only after review.
+
+Journal entries can be deleted separately or exported as JSON.
 
 ## Captures and OCR
 

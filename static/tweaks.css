@@ -68,3 +68,8 @@ button:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline
 .locale-switch{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:10px;white-space:nowrap}.locale-switch select{width:108px;max-width:108px;margin:0;padding:8px}.locale-switch>span{font-size:9px}@media(max-width:540px){.locale-switch{margin-left:auto}.locale-switch>span{display:none}.locale-switch select{width:100px}}
 
 .verified-save{width:min(100%,760px);margin:8px 0;padding:10px 14px;border:1px solid #29414a;border-radius:8px;background:#101d24;color:#a9c5cb;font-size:12px;box-sizing:border-box}.verified-save summary{cursor:pointer;color:#80d6cc}.verified-save p{margin:8px 0;line-height:1.5}.verified-save dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 16px}.verified-save dt,.verified-save dd{margin:0}.verified-save dd{font-variant-numeric:tabular-nums;color:#e6f4f5;text-align:right}
+
+.nms-mode{margin:12px 0;padding:10px 12px;border:1px solid #29414a;border-radius:8px;background:#101d24}.nms-mode .check{margin:0;color:#d4e9e8}.nms-mode .note{margin:8px 0 0;line-height:1.5}
+.chat-save{display:block;margin:6px 0 0 auto;padding:4px 8px;font-size:9px;opacity:.78}.chat-save:hover{opacity:1}
+#saveJournalDialog{width:min(680px,92vw)}#saveJournalForm{display:grid;grid-template-columns:1fr 1fr;gap:8px}#saveJournalForm textarea,#saveJournalForm .buttonrow{grid-column:1/-1}#saveJournalForm label{font-size:11px;color:#aeb8be}#saveJournalForm input,#saveJournalForm textarea{margin-top:4px}
+@media(max-width:540px){#saveJournalForm{grid-template-columns:1fr}.chat-save{padding:6px 8px}}

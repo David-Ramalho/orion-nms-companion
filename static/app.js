@@ -1,5 +1,5 @@
 let activeProfile = localStorage.getItem('orion-profile') || 'default';
-let currentSettings = {}, modelSettings = {}, parameterModel = '';
+let currentSettings = {}, modelSettings = {}, nmsModelSettings = {}, parameterModel = '';
 const $ = id => document.getElementById(id);
 function apiFetch(url, options) {
   const parsed = new URL(url, location.origin);
@@ -11,6 +11,7 @@ let activeController = null, recorder = null, holdTimer = null, speaking = false
 let speechBuffer = '', currentBubble = null, lastReplyEngine = '', turnEpoch = 0;
 const parameterFields = {ollama_num_ctx:'contextSize',ollama_num_predict:'outputTokens',ollama_temperature:'temperature',ollama_num_thread:'threads',ollama_num_gpu:'gpuLayers',ollama_keep_alive:'keepAlive',provider_timeout:'providerTimeout',ollama_think:'modelThink'};
 const parameterDefaults = {ollama_num_ctx:32768,ollama_num_predict:512,ollama_temperature:0.7,ollama_num_thread:0,ollama_num_gpu:-1,ollama_keep_alive:'5m',provider_timeout:180,ollama_think:false};
+const nmsModeParameters = {ollama_num_ctx:4096,ollama_num_predict:192,ollama_temperature:0.7,ollama_num_thread:2,ollama_num_gpu:0,ollama_keep_alive:'0s',ollama_think:false,provider_timeout:180};
 function readParameters() {
   const result = {};
   for (const [key,id] of Object.entries(parameterFields)) result[key] = key==='ollama_think' ? $(id).checked : key==='ollama_keep_alive' ? $(id).value.trim() : Number($(id).value);
@@ -22,11 +23,17 @@ function displayParameters(values) {
     if (key==='ollama_think') $(id).checked=!!value; else $(id).value=value;
   }
 }
-function cacheParameters() { if (parameterModel) modelSettings[parameterModel]=readParameters(); }
+function cacheParameters() { if(parameterModel){const target=$('nmsMode').checked?nmsModelSettings:modelSettings;target[parameterModel]=readParameters();} }
+function renderModelParameters() {
+  const inNmsMode=$('nmsMode').checked;
+  const selected=inNmsMode?nmsModelSettings[parameterModel]:modelSettings[parameterModel];
+  if(inNmsMode)$('modelSettingsDetails').open=true;
+  displayParameters(inNmsMode?{...parameterDefaults,...nmsModeParameters,...selected}:{...parameterDefaults,...currentSettings,...selected});
+  $('modelInfo').textContent=inNmsMode?t("Perfil NMS separado e editável. Camadas GPU: -1 automático, 0 somente CPU, acima de 0 pede esse número de camadas na GPU. Automático ainda pode ficar sem VRAM com NMS aberto."):parameterModel ? t("Parâmetros deste modelo. Consulte os dados locais para ver sua capacidade.") : t("Selecione um modelo instalado no Ollama.");
+}
 function selectModelParameters(name) {
   parameterModel=name;
-  displayParameters({...parameterDefaults,...currentSettings,...(modelSettings[name]||{})});
-  $('modelInfo').textContent=name ? t("Parâmetros deste modelo. Consulte os dados locais para ver sua capacidade.") : t("Selecione um modelo instalado no Ollama.");
+  renderModelParameters();
 }
 function markSettingsDirty() {
   let notice=$('settingsNotice');
@@ -38,16 +45,24 @@ function addMessage(role,text='') {
   const who=document.createElement('div'); who.className='who'; who.textContent=role==='assistant'?'ORION':t("VOCÊ");
   if(role==='assistant'){const small=document.createElement('small');small.textContent='ORI · EXOSUIT';who.append(small);}
   const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;
-  row.append(who,bubble);$('messages').append(row);$('messages').scrollTop=$('messages').scrollHeight;
+  row.append(who,bubble);
+  if(text.trim())addChatSaveControl(row,bubble);
+  $('messages').append(row);$('messages').scrollTop=$('messages').scrollHeight;
   return bubble;
+}
+function addChatSaveControl(row,bubble){
+  if(row.querySelector('.chat-save'))return;
+  const button=document.createElement('button');button.type='button';button.className='chat-save quiet';button.textContent=t("Guardar trecho");
+  button.onclick=()=>window.openConversationSave?.(bubble.textContent,bubble.parentElement.classList.contains('assistant')?'assistant':'user');
+  row.append(button);
 }
 function renderVerifiedSave(details,data) {
   const wasOpen=details.open;details.replaceChildren();details._verifiedSave=data;
   const summary=document.createElement('summary');summary.textContent=t("Dados verificados do save");details.append(summary);
   const note=document.createElement('p');note.textContent=t("Referencia do aplicativo, separada da resposta da IA.");details.append(note);
   const list=document.createElement('dl');
-  const rows=[['Units',data.currencies?.Units],['Nanites',data.currencies?.Nanites],['Quicksilver',data.currencies?.Quicksilver],[t("Bases lidas"),data.base_count],[t("Entradas de inventario reconhecidas"),data.inventory_count]];
-  for(const [label,value] of rows){const term=document.createElement('dt'),definition=document.createElement('dd');term.textContent=label;definition.textContent=typeof value==='number'&&Number.isFinite(value)?value.toLocaleString(uiDateLocale()):t("Desconhecido");list.append(term,definition);}
+  const rows=[['Units',data.currencies?.Units],['Nanites',data.currencies?.Nanites],['Quicksilver',data.currencies?.Quicksilver],[t("Tempo de jogo"),data.play_time],[t("Bases lidas"),data.base_count],[t("Entradas de inventario reconhecidas"),data.inventory_count]];
+  for(const [label,value] of rows){const term=document.createElement('dt'),definition=document.createElement('dd');term.textContent=label;definition.textContent=typeof value==='number'&&Number.isFinite(value)?value.toLocaleString(uiDateLocale()):typeof value==='string'&&value?value:t("Desconhecido");list.append(term,definition);}
   details.append(list);
   if(data.observed_at){const stamp=document.createElement('p');const date=new Date(data.observed_at);stamp.textContent=t("Ultimo salvamento")+': '+(Number.isNaN(date.getTime())?data.observed_at:date.toLocaleString(uiDateLocale()));details.append(stamp);}
   const limits=document.createElement('p');limits.textContent=t("Snapshot historico; o inventario pode estar incompleto.");details.append(limits);
@@ -89,11 +104,12 @@ function refreshVoices() {
 async function loadSettings() {
   try {
     const r=await apiFetch('/api/settings'); if(!r.ok)throw Error(t("Não foi possível carregar as configurações."));
-    const c=await r.json();currentSettings=c;modelSettings=structuredClone(c.ollama_model_settings||{});
+    const c=await r.json();currentSettings=c;modelSettings=structuredClone(c.ollama_model_settings||{});nmsModelSettings=structuredClone(c.ollama_nms_model_settings||{});$('nmsMode').checked=!!c.nms_mode;
     $('language').value=c.stt_language||'auto';$('quietMode').checked=!!c.quiet_mode;$('ttsEnabled').checked=c.tts_enabled!==false;$('replyStyle').value=c.reply_style||'explorer';
     $('cloudSettings').open=c.provider_mode==='gemini';$('libnom').value=c.libnom_cli||'';$('provider').value=c.provider_mode;$('ollamaUrl').value=c.ollama_url;$('geminiModel').value=c.gemini_model;
     $('cloudFallback').checked=!!c.cloud_fallback;$('cloudConsent').checked=!!c.cloud_consent;$('rate').value=c.voice_rate;$('rateLabel').textContent=Number(c.voice_rate).toFixed(2)+'x';$('persona').value=c.system_prompt;$('stt').value=c.stt_model;
-    refreshVoices();await updateStatus();
+    refreshVoices();await updateStatus();renderModelParameters();
+    if(c.nms_mode&&c.provider_mode!=='gemini')await releaseModelForNmsMode();
   } catch(e){$('hint').textContent=uiText(e.message);}
 }
 if('speechSynthesis' in window)speechSynthesis.onvoiceschanged=refreshVoices;
@@ -134,7 +150,7 @@ async function sendMessage(text) {
         $('hint').textContent=t("Aguardando ")+lastReplyEngine+t(" · o primeiro carregamento pode demorar");
       }
       if(item.type==='delta'){bubble.textContent+=item.text;queueSpeech(item.text);window.updateSubtitle?.(bubble.textContent);$('messages').scrollTop=$('messages').scrollHeight;$('hint').textContent=t("Respondendo: ")+lastReplyEngine;}
-      if(item.type==='done'){bubble.classList.remove('streaming');queueSpeech('',true);window.onReplyDone?.(item.text);$('hint').textContent=t("Última resposta: ")+lastReplyEngine+t(" · pronto");}
+      if(item.type==='done'){bubble.classList.remove('streaming');addChatSaveControl(bubble.parentElement,bubble);queueSpeech('',true);window.onReplyDone?.(item.text);$('hint').textContent=t("Última resposta: ")+lastReplyEngine+t(" · pronto");}
       if(item.type==='error'){attachVerifiedSave(bubble,item.verified_save);failed=true;window.onReplyFailed?.();if('speechSynthesis' in window)speechSynthesis.cancel();speechQueued=0;speechBuffer='';bubble.classList.remove('streaming');bubble.textContent=uiText(item.message);$('hint').textContent=t("Confira conexão, modelo e tempo de espera em Sistemas de IA.");}
       if(item.type==='cancelled'){bubble.classList.remove('streaming');$('hint').textContent=t("Resposta interrompida.");}
     };
@@ -180,8 +196,8 @@ async function startRecording() {
         if(data.text){if(activeController){$('prompt').value=data.text;$('hint').textContent=t("Transcrição pronta. Envie quando a resposta terminar.");}else await sendMessage(data.text);}else $('hint').textContent=t("Nenhuma fala detectada. Segure o microfone e tente novamente.");
       }catch(e){if(epoch===micEpoch)$('hint').textContent=uiText(e.message);}
     };
-    recording.start(300);$('mic').classList.add('recording');$('hint').textContent=t("Gravando · solte para enviar · limite de 60 segundos");
-    recordingLimit=setTimeout(()=>{micHeld=false;stopRecording();},60000);
+    const maxSeconds=currentSettings.nms_mode?20:60;recording.start(300);$('mic').classList.add('recording');$('hint').textContent=t(maxSeconds===20?"Gravando · solte para enviar · limite de 20 segundos":"Gravando · solte para enviar · limite de 60 segundos");
+    recordingLimit=setTimeout(()=>{micHeld=false;stopRecording();},maxSeconds*1000);
   }catch(e){stream?.getTracks().forEach(t=>t.stop());$('hint').textContent=t("Microfone: ")+e.message;}
   finally{micOpening=false;}
 }
@@ -212,6 +228,8 @@ $('modelDefaults').onclick=async()=>{
     $('modelInfo').textContent+=t(" · Padrões aplicados. Salve para usar.");
   }catch(e){$('modelInfo').textContent=uiText(e.message);}finally{$('modelDefaults').disabled=false;}
 };
+async function releaseModelForNmsMode(){try{const r=await apiFetch('/api/models/unload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:$('model').value})});return r.ok;}catch{return false;}}
+$('nmsMode').addEventListener('change',()=>{if(parameterModel){const previous=$('nmsMode').checked?modelSettings:nmsModelSettings;previous[parameterModel]=readParameters();}renderModelParameters();markSettingsDirty();});
 $('unloadModel').onclick=async()=>{
   try{const response=await apiFetch('/api/models/unload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:$('model').value})});const data=await response.json();if(!response.ok)throw Error(data.error||t("Não foi possível liberar o modelo."));$('modelInfo').textContent=t("Modelo liberado da memória. A próxima resposta fará um novo carregamento.");}catch(e){$('modelInfo').textContent=uiText(e.message);}
 };
@@ -219,9 +237,9 @@ $('saveSettings').onclick=async()=>{
   const checked=$('cloudFallback').checked,consent=$('cloudConsent').checked;
   if((checked||consent)&&!currentSettings.cloud_consent&&!confirm(t("Gemini envia suas perguntas e memórias selecionadas para o Google. Consulte as condições, quotas e cobrança do seu projeto no AI Studio. Permitir processamento na nuvem?")))return;
   cacheParameters();
-  const data={...readParameters(),ollama_model_settings:modelSettings,stt_language:$('language').value,quiet_mode:$('quietMode').checked,tts_enabled:$('ttsEnabled').checked,reply_style:$('replyStyle').value,libnom_cli:$('libnom').value,provider_mode:$('provider').value,ollama_url:$('ollamaUrl').value,ollama_model:$('model').value,gemini_model:$('geminiModel').value,cloud_fallback:checked,cloud_consent:consent,voice_rate:Number($('rate').value),voice_name:$('voice').value,stt_model:$('stt').value,system_prompt:$('persona').value};
+  const data={...($('nmsMode').checked?{}:readParameters()),ollama_model_settings:modelSettings,ollama_nms_model_settings:nmsModelSettings,nms_mode:$('nmsMode').checked,stt_language:$('language').value,quiet_mode:$('quietMode').checked,tts_enabled:$('ttsEnabled').checked,reply_style:$('replyStyle').value,libnom_cli:$('libnom').value,provider_mode:$('provider').value,ollama_url:$('ollamaUrl').value,ollama_model:$('model').value,gemini_model:$('geminiModel').value,cloud_fallback:checked,cloud_consent:consent,voice_rate:Number($('rate').value),voice_name:$('voice').value,stt_model:$('stt').value,system_prompt:$('persona').value};
   $('saveSettings').disabled=true;
-  try{const response=await apiFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),result=await response.json();if(!response.ok)throw Error(result.error||t("Falha ao salvar."));currentSettings=result.settings||data;$('settingsNotice')?.remove();$('hint').textContent=t("Configurações salvas. Valem para a próxima resposta.");await updateStatus();}
+  try{const enablingNms=data.nms_mode&&!currentSettings.nms_mode;const response=await apiFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),result=await response.json();if(!response.ok)throw Error(result.error||t("Falha ao salvar."));currentSettings=result.settings||data;$('settingsNotice')?.remove();$('hint').textContent=t(data.nms_mode?"Modo NMS salvo. O Ollama usará menos recursos e será descarregado após cada resposta.":"Configurações salvas. Valem para a próxima resposta.");await updateStatus();renderModelParameters();if(enablingNms&&data.provider_mode!=='gemini'){const released=await releaseModelForNmsMode();if(!released)$('hint').textContent=t("Modo NMS salvo. Pare uma resposta ativa e libere o Ollama uma vez antes de gravar.");}}
   catch(e){$('hint').textContent=uiText(e.message);}finally{$('saveSettings').disabled=false;}
 };
 $('saveKey').onclick=async()=>{const api_key=$('apiKey').value.trim();if(!api_key)return;try{const r=await apiFetch('/api/credential',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key})}),d=await r.json();if(!r.ok)throw Error(d.error||t("Falha ao salvar a chave."));$('hint').textContent=t("Chave Gemini salva no Gerenciador de Credenciais do Windows.");$('apiKey').value='';updateStatus();}catch(e){$('hint').textContent=uiText(e.message);}};

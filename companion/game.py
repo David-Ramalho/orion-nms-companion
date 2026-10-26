@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -19,6 +20,7 @@ watch_status = {}
 def normalize(root):
     if not isinstance(root, dict):
         raise ValueError("O save precisa ser um objeto JSON.")
+    original_root = root
     warning=root.get("_orion_decode_warning")
     # Recent saves may contain separate BaseContext / ExpeditionContext. Do not merge them.
     if isinstance(root.get("BaseContext"), dict):
@@ -29,10 +31,18 @@ def normalize(root):
     payload = {"schema": "nms-readable-v1", "inventory": [], "bases": []}
     if warning:
         payload["warning"]=warning
-    for key in ("Units", "Nanites", "Specials", "TotalPlayTime"):
+    for key in ("Units", "Nanites", "Specials"):
         value = state.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             payload[key] = value
+    common = original_root.get("CommonStateData", {})
+    if not isinstance(common, dict):
+        common = root.get("CommonStateData", {})
+    play_time = common.get("TotalPlayTime") if isinstance(common, dict) else None
+    if not isinstance(play_time, (int, float)) or isinstance(play_time, bool):
+        play_time = state.get("TotalPlayTime")
+    if isinstance(play_time, (int, float)) and not isinstance(play_time, bool) and play_time >= 0 and (not isinstance(play_time, float) or math.isfinite(play_time)):
+        payload["TotalPlayTime"] = play_time
     address = state.get("UniverseAddress")
     if isinstance(address, dict):
         payload["address"] = address

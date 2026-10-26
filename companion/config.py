@@ -24,6 +24,8 @@ DEFAULTS = {
     "ollama_think": False,
     "provider_timeout": 180,
     "ollama_model_settings": {},
+    "ollama_nms_model_settings": {},
+    "nms_mode": False,
     "gemini_model": "gemini-3.8-flash",
     "cloud_fallback": False,
     "cloud_consent": False,
@@ -109,6 +111,24 @@ def effective_ollama_config(config, model=None):
     if isinstance(specific, dict):
         current.update(validate_ollama_settings(specific))
     current["ollama_model"] = selected
+    # Keep normal and NMS profiles separate so gameplay tuning never overwrites
+    # the model's regular settings.
+    if current.get("nms_mode") is True:
+        nms_defaults = {
+            "ollama_num_ctx": 4096,
+            "ollama_num_predict": 192,
+            "ollama_temperature": 0.7,
+            "ollama_num_thread": 2,
+            "ollama_num_gpu": 0,
+            "ollama_keep_alive": "0s",
+            "ollama_think": False,
+            "provider_timeout": 180,
+        }
+        nms_mapping = current.get("ollama_nms_model_settings")
+        nms_specific = nms_mapping.get(selected, {}) if isinstance(nms_mapping, dict) else {}
+        current.update(nms_defaults)
+        if isinstance(nms_specific, dict):
+            current.update(validate_ollama_settings(nms_specific))
     return current
 
 
@@ -118,6 +138,8 @@ def save_config(values: dict) -> dict:
         for key in DEFAULTS:
             if key in values:
                 current[key] = values[key]
+        if not isinstance(current.get("nms_mode"), bool):
+            raise ValueError("NMS mode must be true or false.")
         current["provider_mode"] = current["provider_mode"] if current["provider_mode"] in ("auto", "ollama", "gemini") else "auto"
         if current["stt_language"] not in ("auto", "pt", "en"):
             raise ValueError("Idioma inválido.")
@@ -133,15 +155,16 @@ def save_config(values: dict) -> dict:
         if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError("Ollama URL must be an HTTP(S) server address without credentials or query.")
         current.update(validate_ollama_settings(current))
-        mapping = current.get("ollama_model_settings", {})
-        if not isinstance(mapping, dict) or len(mapping) > 200:
-            raise ValueError("Invalid per-model settings.")
-        clean_mapping = {}
-        for model, options in mapping.items():
-            if not isinstance(model, str) or not model.strip() or len(model) > 300 or not isinstance(options, dict):
+        for key in ("ollama_model_settings", "ollama_nms_model_settings"):
+            mapping = current.get(key, {})
+            if not isinstance(mapping, dict) or len(mapping) > 200:
                 raise ValueError("Invalid per-model settings.")
-            clean_mapping[model] = validate_ollama_settings(options)
-        current["ollama_model_settings"] = clean_mapping
+            clean_mapping = {}
+            for model, options in mapping.items():
+                if not isinstance(model, str) or not model.strip() or len(model) > 300 or not isinstance(options, dict):
+                    raise ValueError("Invalid per-model settings.")
+                clean_mapping[model] = validate_ollama_settings(options)
+            current[key] = clean_mapping
         temporary = CONFIG_PATH.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(current, indent=2), encoding="utf-8")
         temporary.replace(CONFIG_PATH)

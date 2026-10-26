@@ -19,10 +19,15 @@ def connect():
     INSERT OR IGNORE INTO profiles VALUES ('default', 'Viajante');
     CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, profile TEXT NOT NULL DEFAULT 'default');
     CREATE TABLE IF NOT EXISTS facts (id INTEGER PRIMARY KEY, content TEXT NOT NULL, created_at TEXT NOT NULL, profile TEXT NOT NULL DEFAULT 'default');
-    CREATE TABLE IF NOT EXISTS journal (id INTEGER PRIMARY KEY, profile TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, location TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', attachment TEXT NOT NULL DEFAULT '');
+    CREATE TABLE IF NOT EXISTS journal (id INTEGER PRIMARY KEY, profile TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, location TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', attachment TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '', due_at TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY, profile TEXT NOT NULL, digest TEXT NOT NULL, source TEXT NOT NULL, observed_at TEXT NOT NULL, payload TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS metrics (id INTEGER PRIMARY KEY, profile TEXT NOT NULL, kind TEXT NOT NULL, seconds REAL NOT NULL, created_at TEXT NOT NULL);
     """)
+    journal_columns = {r[1] for r in db.execute("PRAGMA table_info(journal)")}
+    if "category" not in journal_columns:
+        db.execute("ALTER TABLE journal ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+    if "due_at" not in journal_columns:
+        db.execute("ALTER TABLE journal ADD COLUMN due_at TEXT NOT NULL DEFAULT ''")
     # Preserve existing conversations while making character isolation explicit.
     for table in ("messages", "facts"):
         if "profile" not in {r[1] for r in db.execute(f"PRAGMA table_info({table})")}:
@@ -100,7 +105,11 @@ def clear_history(profile="default"):
 def entries(profile, query="", limit=100):
     query = str(query)[:200]
     with session() as db:
-        return [dict(r) for r in db.execute("SELECT * FROM journal WHERE profile=? AND (title LIKE ? OR content LIKE ? OR location LIKE ?) ORDER BY id DESC LIMIT ?", (profile, f"%{query}%", f"%{query}%", f"%{query}%", limit))]
+        return [dict(r) for r in db.execute("SELECT * FROM journal WHERE profile=? AND (title LIKE ? OR content LIKE ? OR location LIKE ? OR category LIKE ?) ORDER BY id DESC LIMIT ?", (profile, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", limit))]
+
+def categories(profile):
+    with session() as db:
+        return [r[0] for r in db.execute("SELECT DISTINCT category FROM journal WHERE profile=? AND category<>'' ORDER BY category COLLATE NOCASE", (profile,))]
 
 def add_entry(profile, body):
     kind = body.get("kind", "note")
@@ -110,9 +119,19 @@ def add_entry(profile, body):
     content = str(body.get("content", "")).strip()[:8000]
     if not title or not content:
         raise ValueError("Preencha título e descrição.")
+    category = str(body.get("category", "")).strip()[:80]
+    due_at = str(body.get("due_at", "")).strip()
+    if due_at:
+        try:
+            due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+            if due.tzinfo is None:
+                raise ValueError
+            due_at = due.astimezone(timezone.utc).isoformat()
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Prazo inválido. Escolha data e hora no campo de prazo.") from exc
     source = str(body.get("source", "user"))[:80]
     with session() as db:
-        cursor = db.execute("INSERT INTO journal(profile,kind,title,content,location,source,created_at,attachment) VALUES(?,?,?,?,?,?,?,?)", (profile,kind,title,content,str(body.get("location",""))[:500],source,now(),str(body.get("attachment",""))[:100]))
+        cursor = db.execute("INSERT INTO journal(profile,kind,title,content,location,source,created_at,attachment,category,due_at) VALUES(?,?,?,?,?,?,?,?,?,?)", (profile,kind,title,content,str(body.get("location",""))[:500],source,now(),str(body.get("attachment",""))[:100],category,due_at))
         return cursor.lastrowid
 
 def update_entry(profile, ident, status):
@@ -164,6 +183,7 @@ def _snapshot_summary(payload, terms):
     ranked_inventory.sort(key=lambda pair: pair[0], reverse=True)
     summary = {
         "currencies": currencies,
+        "play_time_seconds": payload.get("TotalPlayTime"),
         "bases_count": len(bases),
         "inventory_readable_entries": len(inventory),
         "inventory_is_partial": True,
@@ -207,23 +227,39 @@ def context(profile, query="", snapshot=_SNAPSHOT_UNSET):
     terms = {word for word in re.findall(r"\w+", query.casefold()) if len(word)>2 and word not in stopwords}
     recent = entries(profile, limit=1000)
     goals = [item for item in recent if item["kind"]=="goal" and item["status"]=="open"]
-    parts.append(f"Loaded journal entries: {len(recent)}; recorded open goals: {len(goals)}. "
-                 "The NMS mission book is not imported. If no goals are recorded, say so; proposed activities are suggestions.")
+    due_entries = []
+    current_time = datetime.now(timezone.utc)
+    for item in recent:
+        if item["status"] != "open" or not item.get("due_at"):
+            continue
+        try:
+            due = datetime.fromisoformat(item["due_at"].replace("Z", "+00:00"))
+            if due.tzinfo is not None:
+                due_entries.append((due, item))
+        except (TypeError, ValueError):
+            continue
+    due_entries.sort(key=lambda pair: pair[0])
+    parts.append(f"Current UTC time: {current_time.isoformat()}. Loaded journal entries: {len(recent)}; recorded open goals: {len(goals)}. "
+                 "The save reader does not import fauna discoveries, the in-game mission log, or active frigate timers. "
+                 "If no goals are recorded in this profile's journal, say so; proposed activities are suggestions.")
+    for due, item in due_entries[:8]:
+        state = "overdue" if due <= current_time else "due later"
+        parts.append(f"[USER TRACKED REMINDER; {state}; due_at_utc={due.isoformat()}] {item['title']}: {item['content'][:500]}")
     scored = []
     for item in recent:
-        hay = (item["title"]+" "+item["location"]+" "+item["content"]).casefold()
+        hay = (item["category"]+" "+item["title"]+" "+item["location"]+" "+item["content"]).casefold()
         score = sum(1 for term in terms if term in hay)
         if score:
             scored.append((score,item))
     scored.sort(key=lambda pair:pair[0], reverse=True)
-    candidates = [item for _,item in scored[:8]] + goals[:6] + recent[:8]
+    candidates = [item for _,item in scored[:8]] + [item for _,item in due_entries[:6]] + goals[:6] + recent[:8]
     selected, seen = [], set()
     for item in candidates:
         if item["id"] not in seen:
             selected.append(item)
             seen.add(item["id"])
     for row in selected[:20]:
-        parts.append(f"[{row['kind']}; {row['source']}; {row['created_at']}; {row['status']}] {row['title']} @ {row['location']}: {row['content'][:700]}")
+        parts.append(f"[{row['category'] or row['kind']}; {row['kind']}; {row['source']}; {row['created_at']}; {row['status']}] {row['title']} @ {row['location']}: {row['content'][:700]}")
     snap = latest_snapshot(profile) if snapshot is _SNAPSHOT_UNSET else snapshot
     if snap:
         summary = _snapshot_summary(snap["payload"], terms)
@@ -245,6 +281,8 @@ def context(profile, query="", snapshot=_SNAPSHOT_UNSET):
             canonical.append(f"{label}: {summary['currencies'].get(label, 'unknown')}")
         canonical += [f"Base count: {summary['bases_count']}",
                       f"Readable inventory entries: {summary['inventory_readable_entries']}"]
+        if isinstance(summary.get("play_time_seconds"), (int, float)):
+            canonical.append(f"Saved play time: {summary['play_time_seconds']} seconds")
         parts.append("\n".join(canonical))
         parts.append(f"[LAST SAVE {snap['observed_at']}; source {snap['source']}] " + json.dumps(summary, ensure_ascii=False))
     else:

@@ -8,6 +8,8 @@ import threading
 import wave
 from collections import deque
 
+from .config import load_config
+
 
 class Desktop:
     MAX_AUDIO_BYTES = 16000 * 2 * 60
@@ -116,6 +118,9 @@ class Desktop:
 
     def _begin_record(self, epoch):
         import sounddevice as sd
+        nms_mode = bool(load_config().get("nms_mode"))
+        recording_limit_seconds = 20 if nms_mode else self.MAX_AUDIO_BYTES // (16000 * 2)
+        max_audio_bytes = 16000 * 2 * recording_limit_seconds
         if self.interrupt:
             self.interrupt()
         # Stop browser speech without invalidating this newly requested recording.
@@ -132,12 +137,12 @@ class Desktop:
             with self._state:
                 if epoch != self._epoch or self.stopped.is_set():
                     return
-                remaining = self.MAX_AUDIO_BYTES - self._audio_bytes
+                remaining = max_audio_bytes - self._audio_bytes
                 chunk = bytes(data)[:max(0, remaining)]
                 if chunk:
                     frames.append(chunk)
                     self._audio_bytes += len(chunk)
-                if self._audio_bytes >= self.MAX_AUDIO_BYTES:
+                if self._audio_bytes >= max_audio_bytes:
                     self._enqueue(("finish", serial), epoch)
         stream = None
         try:
@@ -150,8 +155,8 @@ class Desktop:
             if epoch != self._epoch or self.stopped.is_set():
                 self._finish_record(False)
                 return
-            self.emit("notice", profile, text="Gravando · F8 envia · F9 cancela · limite 60 s")
-            self._timer = threading.Timer(60, lambda: self._enqueue(("finish", serial), epoch))
+            self.emit("notice", profile, text=f"Gravando · F8 envia · F9 cancela · limite {recording_limit_seconds} s")
+            self._timer = threading.Timer(recording_limit_seconds, lambda: self._enqueue(("finish", serial), epoch))
             self._timer.daemon = True
             self._timer.start()
         except Exception:

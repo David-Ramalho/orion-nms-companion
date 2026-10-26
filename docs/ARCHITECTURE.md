@@ -2,17 +2,19 @@
 
 O servidor Flask escuta somente em 127.0.0.1:8765. A página usa streaming NDJSON para texto e síntese de voz do navegador. A camada de provedores mantém Ollama e Gemini separados.
 
+O perfil local para NMS guarda opções separadas por modelo, com contexto 4k, saída 192, CPU como padrão para evitar disputa de VRAM e descarregamento após a resposta. A interface deixa os parâmetros editáveis; camadas GPU 0 = CPU, -1 = automático e positivos = número solicitado de camadas. F8 e o microfone limitam gravações a 20 segundos; Whisper tiny usa uma thread CPU.
+
 ## Contexto e memória
 
-SQLite contém profiles, messages, facts, journal, snapshots e metrics. Histórico e todas as consultas de exploração são filtrados por perfil. Registros antigos migram para default. As fontes do diário distinguem usuário, observação revisada, diferenças de save e resumo gerado.
+SQLite contém profiles, messages, facts, journal, snapshots e metrics. Histórico e todas as consultas de exploração são filtrados por perfil. Registros antigos migram para default; journal migra category e due_at sem apagar entradas. Notas de conversa são revisadas antes de gravar e podem receber categoria livre e prazo UTC. Prazos aparecem no diário e entram no contexto da próxima conversa; não são alarmes em tempo real. Nova conversa apaga messages do perfil, não fatos, diário ou save; contexto recupera notas relevantes e lembretes abertos com prazo.
 
-Antes de cada resposta, o servidor monta persona, notas, objetivos abertos e registros recentes/relevantes do diário do perfil. O snapshot entra como resumo estruturado: horário/origem, moedas e contagens preservadas, nomes de bases, até oito bases relacionadas à pergunta e até 30 correspondências de inventário. O limite de texto remove registros opcionais inteiros, sem cortar JSON ou esconder totais. Termos comuns da pergunta não contam como correspondências de inventário. A ausência de objetivos e a falta de importação do livro de missões são explícitas. O prompt trata registros como dados, nunca instruções. A memória não é ilimitada: há limites de contexto e correspondência textual simples.
+Antes de cada resposta, o servidor monta persona, notas, objetivos abertos, lembretes vencidos/futuros e registros recentes/relevantes do diário do perfil. O snapshot entra como resumo estruturado: horário/origem, moedas, tempo jogado (segundos do save), contagens preservadas, nomes de bases, até oito bases relacionadas à pergunta e até 30 correspondências de inventário. O limite de texto remove registros opcionais inteiros, sem cortar JSON ou esconder totais. Termos comuns da pergunta não contam como correspondências de inventário. A ausência de objetivos e a falta de importação do livro de missões são explícitas. O prompt trata registros como dados, nunca instruções. A memória não é ilimitada: há limites de contexto e correspondência textual simples.
 
 ## Saves
 
 O watcher verifica somente arquivos vinculados explicitamente. Faz duas amostras para debounce e valida tamanho/mtime antes/depois da leitura. PC LZ4 é descompactado em memória com limite de 64 MB. Um mapa externo versionado traduz as chaves necessárias. JSON e identificadores são validados; IDs binários ilegíveis são descartados com aviso.
 
-O estado normalizado contém endereço, moedas disponíveis, bases e inventários selecionados. SHA-256 evita snapshots/eventos duplicados. Mudanças geram observações de último save, não eventos em tempo real. libNOM CLI opcional só recebe uma cópia temporária e a operação Read.
+O estado normalizado contém endereço, moedas disponíveis, tempo jogado, bases e inventários selecionados. SHA-256 evita snapshots/eventos duplicados. Mudanças geram observações de último save, não eventos em tempo real. libNOM CLI opcional só recebe uma cópia temporária e a operação Read.
 
 ## Captura e desktop
 

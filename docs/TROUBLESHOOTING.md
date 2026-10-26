@@ -44,7 +44,7 @@ Se houver travamento mesmo com Ori fechado, essa observação é útil para a in
 
 O save pode ser lido com o jogo fechado. O conteúdo corresponde ao último salvamento, e não a uma transmissão ao vivo.
 
-Objetivos, lore e narrativa do diário são registros próprios do Orion. A importação completa do diário de missões interno do NMS ainda não está implementada. Um painel desses vazio num personagem novo é esperado. Inventário vazio exige conferir vínculo, horário e avisos do leitor; pode ser um campo não reconhecido.
+O leitor atual reconhece moedas, tempo jogado, endereço salvo, inventários e bases. Ele ainda não importa fauna, o diário de missões do jogo nem temporizadores ativos das expedições de fragatas. Use o diário do Ori para registrar manualmente descobertas, projetos e horários de retorno. Entradas guardadas nesse diário continuam disponíveis em novas conversas do mesmo personagem; Nova conversa limpa o histórico, não o diário.
 
 ## Gemini 503 e assinatura ChatGPT
 
@@ -52,8 +52,24 @@ Objetivos, lore e narrativa do diário são registros próprios do Orion. A impo
 
 A assinatura do ChatGPT e a API da OpenAI têm cobrança separada. Orion utiliza Ollama ou Gemini e não usa os créditos de uma assinatura ChatGPT.
 
+## Erro de memória ao enviar uma gravação F8 com NMS aberto
+
+O F8 grava até 60 segundos no modo normal e envia o áudio para o Whisper `tiny` por meio do faster-whisper/CTranslate2, em CPU/int8. O erro `mkl_malloc: failed to allocate memory` logo depois do segundo F8 indica que uma biblioteca nativa não conseguiu reservar memória. O momento sugere a transcrição local; os logs não registram a mensagem nativa e não provam o ponto exato da falha.
+
+Ative **NMS aberto · modo econômico** em Sistemas de IA. Ele limita F8 e o microfone do navegador a 20 segundos, usa uma thread na transcrição, envia contexto 4k e até 192 tokens ao Ollama, começa com GPU em `0` (somente CPU) e descarrega o modelo depois da resposta. Todos os parâmetros continuam editáveis; o perfil normal de 32k fica salvo separadamente. Digitar continua disponível se a memória ficar apertada.
+
+O faster-whisper usa CTranslate2 e oferece modo int8 para CPU; a transcrição ainda precisa de memória temporária. Veja as [orientações de desempenho do CTranslate2](https://opennmt.net/CTranslate2/performance.html) e os [detalhes de memória do faster-whisper](https://github.com/SYSTRAN/faster-whisper).
+
+## MKL allocation during F8 with NMS open
+
+Normal mode records up to 60 seconds and transcribes with local Whisper `tiny` through faster-whisper/CTranslate2 on CPU/int8. `mkl_malloc: failed to allocate memory` means a native library could not reserve memory. Its timing points to local transcription, but Ori's logs do not capture the native message or prove the exact failing call.
+
+Enable **NMS open · low-resource mode** under AI systems. Its separate profile starts with CPU-only Ollama placement, 4k context, up to 192 output tokens, 20-second F8/browser recordings and one CPU thread for Whisper, then unloads Ollama after each answer. All model controls stay editable. GPU layers `0` requests CPU only, `-1` automatic placement, and a positive number requests that many model layers on the GPU, up to the full model. CPU avoids VRAM pressure but may compete for system RAM/CPU; automatic placement can still fail while NMS is using VRAM. Your normal 32k profile remains separate. Typed chat is available if transcription runs out of memory.
+
+faster-whisper uses CTranslate2 and supports CPU int8; transcription still needs temporary working memory. See [CTranslate2 performance tips](https://opennmt.net/CTranslate2/performance.html) and [faster-whisper memory details](https://github.com/SYSTRAN/faster-whisper).
+
 ## AI conversation and GPU-memory failures
 
 Normal chat always uses the chosen AI, even for save questions. The Verified save facts card is a separate reference; it does not replace the model response. Start Ollama or the existing Docker container before chatting. Refused connections, interrupted runners and GPU-memory errors are reported separately.
 
-A real lfm2.5:8b request at 32768 context failed with CUDA out of memory on the tested GPU. GPU layers can be set per model: -1 automatic, 0 CPU, a positive value for partial offload. CPU mode is a setting to test, not a guarantee; the observed CPU-only attempt disconnected during loading. A smaller model may be necessary. The app does not silently reduce context or switch models.
+The current 1.2B model failing to load with NMS open does not mean it can never use the GTX 1650. NMS and Ollama share the card's VRAM, and automatic placement may request more than remains free. Try the NMS profile's CPU-only choice first; if it is too slow, try a small positive GPU-layer value and increase gradually. CPU inference uses the same system RAM and CPU as the game, so it is not guaranteed to be smoother. The standard profile is stored separately.
